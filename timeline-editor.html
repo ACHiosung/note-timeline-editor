@@ -205,6 +205,10 @@ const S = {
   dragging: null,      // {noteRef, startMx, startMy, startX, startY}
   snapEnabled: true,
   tlZoom: 1,
+  multiSelectedBars: new Set(), // indices of bars in rubber-band selection
+  copiedBarNotes: null,         // [{count, notes:[{type,x,y}]}] clipboard
+  pasteOverlayBars: new Map(),  // barIndex → 'ok'|'error' after Ctrl+V
+  tlDragSelect: null,           // {startX, currentX} during rubber-band drag
 };
 
 // ═══════════════════════════════════════════════
@@ -295,6 +299,10 @@ function buildData() {
   S.selectedNormalBar = -1;
   S.selectedDragChain = -1;
   S.selectedNoteIdx   = -1;
+  S.multiSelectedBars = new Set();
+  S.copiedBarNotes    = null;
+  S.pasteOverlayBars  = new Map();
+  S.tlDragSelect      = null;
   document.getElementById('info-notes').textContent = `노트: ${S.rawNotes.length}`;
   document.getElementById('info-bars').textContent  =
     `바: ${S.normalBars.length} / 체인: ${S.dragChains.length}`;
@@ -420,7 +428,18 @@ function renderNormalTimeline() {
     const cx = tlTimeToX(bar.time);   // center x
     const bx = cx - TL_BAR_W / 2;
     const sel = i === S.selectedNormalBar;
-    const color = sel ? '#64b5f6' : `hsl(210,70%,${BAR_BASE_L + Math.min(bar.notes.length * BAR_L_PER_NOTE, BAR_MAX_L_BONUS)}%)`;
+
+    // Priority: paste overlay > single selection > multi-selection > default
+    let color;
+    if (S.pasteOverlayBars.has(i)) {
+      color = S.pasteOverlayBars.get(i) === 'ok' ? '#4dd0e1' : '#ef5350';
+    } else if (sel) {
+      color = '#64b5f6';
+    } else if (S.multiSelectedBars.has(i)) {
+      color = '#ffd54f';
+    } else {
+      color = `hsl(210,70%,${BAR_BASE_L + Math.min(bar.notes.length * BAR_L_PER_NOTE, BAR_MAX_L_BONUS)}%)`;
+    }
 
     // Thin vertical tick
     ctx.fillStyle = color;
@@ -444,6 +463,31 @@ function renderNormalTimeline() {
     ctx.textAlign = 'center';
     ctx.fillText(bar.notes.length, cx, TL_BAR_Y - TL_DOT_R - 3);
   });
+
+  // Draw rubber-band selection rectangle
+  if (S.tlDragSelect) {
+    const x1 = Math.min(S.tlDragSelect.startX, S.tlDragSelect.currentX);
+    const x2 = Math.max(S.tlDragSelect.startX, S.tlDragSelect.currentX);
+    const ry = TL_BAR_Y - TL_DOT_R - 6;
+    const rh = TL_BAR_H + TL_DOT_R + 10;
+    ctx.fillStyle = 'rgba(100,181,246,0.12)';
+    ctx.fillRect(x1, ry, x2 - x1, rh);
+    ctx.strokeStyle = 'rgba(100,181,246,0.7)';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([3, 3]);
+    ctx.strokeRect(x1, ry, x2 - x1, rh);
+    ctx.setLineDash([]);
+  }
+
+  // Multi-selection count badge
+  if (S.multiSelectedBars.size > 1) {
+    ctx.fillStyle = 'rgba(10,22,40,0.75)';
+    ctx.fillRect(0, 0, W, 14);
+    ctx.fillStyle = '#ffd54f';
+    ctx.font = 'bold 9px Segoe UI';
+    ctx.textAlign = 'left';
+    ctx.fillText(`${S.multiSelectedBars.size}개 바 선택됨 — Ctrl+C 로 복사`, 8, 10);
+  }
 }
 
 // ═══════════════════════════════════════════════
@@ -786,26 +830,36 @@ function drawGrid(ctx, W, H) {
 // ═══════════════════════════════════════════════
 //  TIMELINE CLICK HANDLERS
 // ═══════════════════════════════════════════════
-normalTlEl.addEventListener('click', e => {
+normalTlEl.addEventListener('mousedown', e => {
   if (!S.normalBars.length) return;
   const rect = normalTlEl.getBoundingClientRect();
   const mx = e.clientX - rect.left;
   const my = e.clientY - rect.top;
-  if (my < TL_BAR_Y - TL_DOT_R - 4 || my > TL_BAR_Y + TL_BAR_H) return;
 
-  for (let i = 0; i < S.normalBars.length; i++) {
-    const cx = tlTimeToX(S.normalBars[i].time);
-    if (Math.abs(mx - cx) <= TL_HIT_W / 2) {
-      S.selectedNormalBar = i;
-      S.selectedDragChain = -1;
-      S.selectedNoteIdx   = -1;
-      S.dragging = null;
-      document.getElementById('info-selected').textContent =
-        `일반/롱 바 ${i + 1}번 (${S.normalBars[i].time.toFixed(2)}s, ${S.normalBars[i].notes.length}개)`;
-      renderAll();
-      return;
+  // Check if clicking directly on a bar
+  if (my >= TL_BAR_Y - TL_DOT_R - 4 && my <= TL_BAR_Y + TL_BAR_H) {
+    for (let i = 0; i < S.normalBars.length; i++) {
+      const cx = tlTimeToX(S.normalBars[i].time);
+      if (Math.abs(mx - cx) <= TL_HIT_W / 2) {
+        S.selectedNormalBar = i;
+        S.selectedDragChain = -1;
+        S.selectedNoteIdx   = -1;
+        S.dragging = null;
+        S.multiSelectedBars = new Set([i]);
+        S.tlDragSelect = null;
+        document.getElementById('info-selected').textContent =
+          `일반/롱 바 ${i + 1}번 (${S.normalBars[i].time.toFixed(2)}s, ${S.normalBars[i].notes.length}개)`;
+        renderAll();
+        return;
+      }
     }
   }
+
+  // Start rubber-band selection
+  S.tlDragSelect = { startX: mx, currentX: mx };
+  S.multiSelectedBars = new Set();
+  S.selectedNormalBar = -1;
+  renderNormalTimeline();
 });
 
 dragTlEl.addEventListener('click', e => {
@@ -822,6 +876,7 @@ dragTlEl.addEventListener('click', e => {
       S.selectedNormalBar = -1;
       S.selectedNoteIdx   = -1;
       S.dragging = null;
+      S.multiSelectedBars = new Set();
       document.getElementById('info-selected').textContent =
         `드래그 체인 ${i + 1}번 (${S.dragChains[i].startTime.toFixed(2)}s, ${S.dragChains[i].notes.length}개 노드)`;
       renderAll();
@@ -1054,13 +1109,113 @@ function handleShiftNav(forward) {
   }
 }
 
-// ── keydown: A/D navigation + Arrow key note adjustment ─────────────
+// ── document-level rubber-band drag handlers ──────────────────────
+document.addEventListener('mousemove', e => {
+  if (!S.tlDragSelect) return;
+  const rect = normalTlEl.getBoundingClientRect();
+  const mx = e.clientX - rect.left;
+  S.tlDragSelect.currentX = mx;
+  const x1 = Math.min(S.tlDragSelect.startX, S.tlDragSelect.currentX);
+  const x2 = Math.max(S.tlDragSelect.startX, S.tlDragSelect.currentX);
+  S.multiSelectedBars = new Set();
+  S.normalBars.forEach((bar, i) => {
+    const cx = tlTimeToX(bar.time);
+    if (cx >= x1 && cx <= x2) S.multiSelectedBars.add(i);
+  });
+  renderNormalTimeline();
+});
+
+document.addEventListener('mouseup', e => {
+  if (!S.tlDragSelect) return;
+  S.tlDragSelect = null;
+  const count = S.multiSelectedBars.size;
+  if (count === 1) {
+    const idx = [...S.multiSelectedBars][0];
+    S.selectedNormalBar = idx;
+    document.getElementById('info-selected').textContent =
+      `일반/롱 바 ${idx + 1}번 (${S.normalBars[idx].time.toFixed(2)}s, ${S.normalBars[idx].notes.length}개)`;
+    renderAll();
+  } else if (count > 1) {
+    const sorted = [...S.multiSelectedBars].sort((a, b) => a - b);
+    S.selectedNormalBar = sorted[0];
+    document.getElementById('info-selected').textContent =
+      `바 ${count}개 선택됨 (${S.normalBars[sorted[0]].time.toFixed(2)}s ~ ${S.normalBars[sorted[sorted.length - 1]].time.toFixed(2)}s)`;
+    renderAll();
+  } else {
+    renderNormalTimeline();
+  }
+});
+
+// ── document-level mousedown: clear paste overlay on any click ────
+document.addEventListener('mousedown', () => {
+  if (S.pasteOverlayBars.size > 0) {
+    S.pasteOverlayBars = new Map();
+    renderNormalTimeline();
+  }
+});
+
+// ── keydown: Ctrl+C / Ctrl+V / A/D navigation + Arrow key note adjustment ──
 document.addEventListener('keydown', e => {
   const tag = e.target && e.target.tagName;
   if (tag === 'INPUT' || tag === 'TEXTAREA' || e.target.isContentEditable) return;
 
+  // ── Ctrl+C: copy selected normal bars ──────────────────────────
+  if ((e.ctrlKey || e.metaKey) && e.key === 'c') {
+    const selection = S.multiSelectedBars.size > 0
+      ? [...S.multiSelectedBars].sort((a, b) => a - b)
+      : (S.selectedNormalBar >= 0 ? [S.selectedNormalBar] : []);
+    if (selection.length > 0 && S.normalBars.length > 0) {
+      S.copiedBarNotes = selection.map(i => {
+        const bar = S.normalBars[i];
+        return {
+          count: bar.notes.length,
+          notes: bar.notes.map(n => ({ type: n.type, x: n.position.x, y: n.position.y })),
+        };
+      });
+      document.getElementById('status-msg').textContent =
+        `📋 바 ${selection.length}개 복사됨`;
+    }
+    return;
+  }
+
+  // ── Ctrl+V: paste copied bars starting from selected bar ────────
+  if ((e.ctrlKey || e.metaKey) && e.key === 'v') {
+    if (!S.copiedBarNotes || !S.normalBars.length) return;
+    const startIdx = S.multiSelectedBars.size > 0
+      ? Math.min(...S.multiSelectedBars)
+      : S.selectedNormalBar;
+    if (startIdx < 0) return;
+    e.preventDefault();
+
+    S.pasteOverlayBars = new Map();
+    S.copiedBarNotes.forEach((copied, offset) => {
+      const targetIdx = startIdx + offset;
+      if (targetIdx >= S.normalBars.length) return;
+      const target = S.normalBars[targetIdx];
+      const compatible =
+        target.notes.length === copied.count &&
+        target.notes.every((n, j) => n.type === copied.notes[j].type);
+      if (compatible) {
+        target.notes.forEach((n, j) => {
+          n.position.x = copied.notes[j].x;
+          n.position.y = copied.notes[j].y;
+        });
+        S.pasteOverlayBars.set(targetIdx, 'ok');
+      } else {
+        S.pasteOverlayBars.set(targetIdx, 'error');
+      }
+    });
+    const okCount  = [...S.pasteOverlayBars.values()].filter(v => v === 'ok').length;
+    const errCount = [...S.pasteOverlayBars.values()].filter(v => v === 'error').length;
+    document.getElementById('status-msg').textContent =
+      `붙여넣기 완료 — 성공 ${okCount}개 / 불일치 ${errCount}개`;
+    renderAll();
+    return;
+  }
+
   // ── A / D: navigate bars / cycle through notes ──────────────────
   if (e.key === 'a' || e.key === 'A' || e.key === 'd' || e.key === 'D') {
+    if (e.ctrlKey || e.metaKey) return;
     const forward = e.key === 'd' || e.key === 'D';
     e.preventDefault();
     handleShiftNav(forward);
