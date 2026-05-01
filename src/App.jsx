@@ -153,7 +153,7 @@ export default function App() {
   const selectedBar = bars.find((b) => b.id === selectedBarId) ?? null
 
   return (
-    <div className="flex flex-col w-full h-full bg-gray-900 overflow-hidden">
+    <div className="flex flex-col w-full h-screen bg-gray-900 overflow-hidden">
       {/* Toolbar */}
       <div className="flex items-center gap-3 px-4 py-2 bg-gray-800 border-b border-gray-700 shrink-0 flex-wrap">
         <span className="text-white font-bold text-sm tracking-wide mr-2">
