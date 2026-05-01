@@ -1,0 +1,54 @@
+{
+  "bars": [
+    {
+      "id": "bar1",
+      "label": "인트로",
+      "startTime": 0,
+      "endTime": 8,
+      "notes": [
+        { "id": "n1", "text": "첫 번째 노트", "pos": { "x": 120, "y": 180 } },
+        { "id": "n2", "text": "두 번째 노트", "pos": { "x": 380, "y": 260 } }
+      ]
+    },
+    {
+      "id": "bar2",
+      "label": "버스 1",
+      "startTime": 8,
+      "endTime": 24,
+      "notes": [
+        { "id": "n3", "text": "세 번째 노트", "pos": { "x": 200, "y": 140 } },
+        { "id": "n4", "text": "네 번째 노트", "pos": { "x": 500, "y": 320 } },
+        { "id": "n5", "text": "다섯 번째 노트", "pos": { "x": 300, "y": 80 } }
+      ]
+    },
+    {
+      "id": "bar3",
+      "label": "코러스",
+      "startTime": 24,
+      "endTime": 40,
+      "notes": [
+        { "id": "n6", "text": "여섯 번째 노트", "pos": { "x": 150, "y": 300 } },
+        { "id": "n7", "text": "일곱 번째 노트", "pos": { "x": 450, "y": 120 } }
+      ]
+    },
+    {
+      "id": "bar4",
+      "label": "버스 2",
+      "startTime": 40,
+      "endTime": 56,
+      "notes": [
+        { "id": "n8", "text": "여덟 번째 노트", "pos": { "x": 250, "y": 200 } }
+      ]
+    },
+    {
+      "id": "bar5",
+      "label": "아웃트로",
+      "startTime": 56,
+      "endTime": 64,
+      "notes": [
+        { "id": "n9", "text": "아홉 번째 노트", "pos": { "x": 340, "y": 170 } },
+        { "id": "n10", "text": "열 번째 노트", "pos": { "x": 100, "y": 350 } }
+      ]
+    }
+  ]
+}
