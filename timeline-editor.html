@@ -988,93 +988,95 @@ function updateInfoSelected() {
   }
 }
 
-document.addEventListener('keydown', e => {
-  const tag = e.target && e.target.tagName;
-  if (tag === 'INPUT' || tag === 'TEXTAREA' || e.target.isContentEditable) return;
-
-  // ── Shift key: navigate bars / cycle through notes ──────────────
-  if (e.key === 'Shift') {
-    const forward = e.code === 'ShiftRight';
-    const backward = e.code === 'ShiftLeft';
-    if (!forward && !backward) return;
-    e.preventDefault();
-
-    if (S.selectedNormalBar >= 0 && S.normalBars.length > 0) {
-      const bar = S.normalBars[S.selectedNormalBar];
-      if (bar.notes.length > 0) {
-        if (S.selectedNoteIdx < 0) {
-          // First press: select first note
-          S.selectedNoteIdx = forward ? 0 : bar.notes.length - 1;
-        } else if (forward && S.selectedNoteIdx < bar.notes.length - 1) {
-          S.selectedNoteIdx++;
-        } else if (backward && S.selectedNoteIdx > 0) {
-          S.selectedNoteIdx--;
-        } else {
-          // All notes visited in this direction – move to adjacent bar
-          const newIdx = forward
-            ? Math.min(S.selectedNormalBar + 1, S.normalBars.length - 1)
-            : Math.max(S.selectedNormalBar - 1, 0);
-          if (newIdx === S.selectedNormalBar) return;
-          S.selectedNormalBar = newIdx;
-          const newBar = S.normalBars[newIdx];
-          S.selectedNoteIdx = forward ? 0 : newBar.notes.length - 1;
-          scrollTimelineToSelected();
-        }
+// Shared Shift navigation logic (used by both keydown and keyup handlers)
+function handleShiftNav(forward) {
+  if (S.selectedNormalBar >= 0 && S.normalBars.length > 0) {
+    const bar = S.normalBars[S.selectedNormalBar];
+    if (bar.notes.length > 0) {
+      if (S.selectedNoteIdx < 0) {
+        S.selectedNoteIdx = forward ? 0 : bar.notes.length - 1;
+      } else if (forward && S.selectedNoteIdx < bar.notes.length - 1) {
+        S.selectedNoteIdx++;
+      } else if (!forward && S.selectedNoteIdx > 0) {
+        S.selectedNoteIdx--;
       } else {
-        // Bar has no notes – just move between bars
         const newIdx = forward
           ? Math.min(S.selectedNormalBar + 1, S.normalBars.length - 1)
           : Math.max(S.selectedNormalBar - 1, 0);
         if (newIdx === S.selectedNormalBar) return;
         S.selectedNormalBar = newIdx;
-        S.selectedNoteIdx = -1;
+        const newBar = S.normalBars[newIdx];
+        S.selectedNoteIdx = forward ? 0 : newBar.notes.length - 1;
         scrollTimelineToSelected();
       }
-      updateInfoSelected();
-      renderAll();
+    } else {
+      const newIdx = forward
+        ? Math.min(S.selectedNormalBar + 1, S.normalBars.length - 1)
+        : Math.max(S.selectedNormalBar - 1, 0);
+      if (newIdx === S.selectedNormalBar) return;
+      S.selectedNormalBar = newIdx;
+      S.selectedNoteIdx = -1;
+      scrollTimelineToSelected();
+    }
+    updateInfoSelected();
+    renderAll();
 
-    } else if (S.selectedDragChain >= 0 && S.dragChains.length > 0) {
-      const chain = S.dragChains[S.selectedDragChain];
-      if (chain.notes.length > 0) {
-        if (S.selectedNoteIdx < 0) {
-          S.selectedNoteIdx = forward ? 0 : chain.notes.length - 1;
-        } else if (forward && S.selectedNoteIdx < chain.notes.length - 1) {
-          S.selectedNoteIdx++;
-        } else if (backward && S.selectedNoteIdx > 0) {
-          S.selectedNoteIdx--;
-        } else {
-          const newIdx = forward
-            ? Math.min(S.selectedDragChain + 1, S.dragChains.length - 1)
-            : Math.max(S.selectedDragChain - 1, 0);
-          if (newIdx === S.selectedDragChain) return;
-          S.selectedDragChain = newIdx;
-          const newChain = S.dragChains[newIdx];
-          S.selectedNoteIdx = forward ? 0 : newChain.notes.length - 1;
-          scrollTimelineToSelected();
-        }
+  } else if (S.selectedDragChain >= 0 && S.dragChains.length > 0) {
+    const chain = S.dragChains[S.selectedDragChain];
+    if (chain.notes.length > 0) {
+      if (S.selectedNoteIdx < 0) {
+        S.selectedNoteIdx = forward ? 0 : chain.notes.length - 1;
+      } else if (forward && S.selectedNoteIdx < chain.notes.length - 1) {
+        S.selectedNoteIdx++;
+      } else if (!forward && S.selectedNoteIdx > 0) {
+        S.selectedNoteIdx--;
       } else {
         const newIdx = forward
           ? Math.min(S.selectedDragChain + 1, S.dragChains.length - 1)
           : Math.max(S.selectedDragChain - 1, 0);
         if (newIdx === S.selectedDragChain) return;
         S.selectedDragChain = newIdx;
-        S.selectedNoteIdx = -1;
+        const newChain = S.dragChains[newIdx];
+        S.selectedNoteIdx = forward ? 0 : newChain.notes.length - 1;
         scrollTimelineToSelected();
       }
-      updateInfoSelected();
-      renderAll();
+    } else {
+      const newIdx = forward
+        ? Math.min(S.selectedDragChain + 1, S.dragChains.length - 1)
+        : Math.max(S.selectedDragChain - 1, 0);
+      if (newIdx === S.selectedDragChain) return;
+      S.selectedDragChain = newIdx;
+      S.selectedNoteIdx = -1;
+      scrollTimelineToSelected();
     }
-    return;
+    updateInfoSelected();
+    renderAll();
   }
+}
 
-  // ── Arrow keys: adjust selected note position ───────────────────
+// ── keyup: Shift navigation (keyup avoids Korean IME capturing right-Shift on keydown) ──
+document.addEventListener('keyup', e => {
+  const tag = e.target && e.target.tagName;
+  if (tag === 'INPUT' || tag === 'TEXTAREA' || e.target.isContentEditable) return;
+  if (e.key !== 'Shift') return;
+  const forward  = e.code === 'ShiftRight' || e.location === KeyboardEvent.DOM_KEY_LOCATION_RIGHT;
+  const backward = e.code === 'ShiftLeft'  || e.location === KeyboardEvent.DOM_KEY_LOCATION_LEFT;
+  if (!forward && !backward) return;
+  e.preventDefault();
+  handleShiftNav(forward);
+});
+
+// ── keydown: Arrow key note adjustment ──────────────────────────────
+document.addEventListener('keydown', e => {
+  const tag = e.target && e.target.tagName;
+  if (tag === 'INPUT' || tag === 'TEXTAREA' || e.target.isContentEditable) return;
+
   const isArrow = e.key === 'ArrowLeft' || e.key === 'ArrowRight'
                || e.key === 'ArrowUp'   || e.key === 'ArrowDown';
   if (!isArrow) return;
 
   const notes = getSelectedBarNotes();
   if (notes && S.selectedNoteIdx >= 0 && S.selectedNoteIdx < notes.length) {
-    // Move the focused note
     e.preventDefault();
     const step = S.snapEnabled ? 0.5 : 0.1;
     const note = notes[S.selectedNoteIdx];
