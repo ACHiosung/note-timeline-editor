@@ -23,108 +23,104 @@
       display: flex;
       align-items: center;
       gap: 10px;
-      padding: 8px 16px;
+      padding: 6px 14px;
       background: #0a1628;
       border-bottom: 1px solid #1a3a5c;
       flex-shrink: 0;
       flex-wrap: wrap;
     }
-    #toolbar .logo {
-      font-weight: 700;
-      font-size: 15px;
-      color: #64b5f6;
-      white-space: nowrap;
-    }
+    .logo { font-weight: 700; font-size: 14px; color: #64b5f6; white-space: nowrap; }
     .btn {
-      padding: 5px 14px;
+      padding: 4px 12px;
       border-radius: 5px;
       border: none;
       cursor: pointer;
-      font-size: 12px;
+      font-size: 11px;
       font-weight: 600;
       transition: background 0.15s;
       white-space: nowrap;
     }
-    .btn-primary { background: #1565c0; color: #fff; }
-    .btn-primary:hover { background: #1976d2; }
-    .btn-success { background: #1b5e20; color: #a5d6a7; }
+    .btn-primary  { background: #1565c0; color: #fff; }
+    .btn-primary:hover  { background: #1976d2; }
+    .btn-success  { background: #1b5e20; color: #a5d6a7; }
     .btn-success:hover:not(:disabled) { background: #2e7d32; }
     .btn-success:disabled { opacity: 0.4; cursor: default; }
     .btn-secondary { background: #1a3a5c; color: #90caf9; }
     .btn-secondary:hover { background: #1e4976; }
     .tag {
-      background: #112244;
-      color: #90caf9;
-      padding: 4px 10px;
-      border-radius: 4px;
-      font-size: 11px;
-      white-space: nowrap;
+      background: #112244; color: #90caf9;
+      padding: 3px 8px; border-radius: 4px;
+      font-size: 10px; white-space: nowrap;
     }
-    .tag-highlight { background: #1a3a5c; color: #64b5f6; font-weight: 700; }
+    .tag-hl { background: #1a3a5c; color: #64b5f6; font-weight: 700; }
     #info-pos { margin-left: auto; }
 
-    /* ── MAIN AREA ── */
+    /* ── MAIN ── */
     #main-area {
-      flex: 1;
+      flex: 1; display: flex; flex-direction: column;
+      overflow: hidden; min-height: 0;
+    }
+
+    /* Note canvas */
+    #note-canvas-wrapper {
+      flex: 1; position: relative; overflow: hidden; min-height: 0;
+    }
+    #note-canvas { display: block; background: #060f1a; }
+
+    /* ── TIMELINE AREA ── */
+    #timeline-area {
+      height: 136px;
+      flex-shrink: 0;
       display: flex;
       flex-direction: column;
-      overflow: hidden;
-      min-height: 0;
-    }
-
-    /* Note canvas wrapper */
-    #note-canvas-wrapper {
-      flex: 1;
-      position: relative;
-      overflow: hidden;
-      min-height: 0;
-    }
-    #note-canvas {
-      display: block;
-      background: #060f1a;
-    }
-
-    /* Timeline wrapper */
-    #timeline-wrapper {
-      height: 130px;
-      position: relative;
       background: #0a1628;
       border-top: 2px solid #1a3a5c;
-      overflow-x: auto;
-      overflow-y: hidden;
-      flex-shrink: 0;
     }
-    #timeline-wrapper::-webkit-scrollbar { height: 6px; }
-    #timeline-wrapper::-webkit-scrollbar-track { background: #0a1628; }
-    #timeline-wrapper::-webkit-scrollbar-thumb { background: #1a3a5c; border-radius: 3px; }
-    #timeline-canvas { display: block; }
+    #tl-main { flex: 1; display: flex; min-height: 0; }
 
-    /* Timeline controls (floating over the wrapper) */
-    #timeline-controls {
-      position: absolute;
-      top: 4px;
-      right: 8px;
-      display: flex;
-      gap: 6px;
-      z-index: 10;
-      pointer-events: none;
+    /* Side labels */
+    #tl-labels {
+      width: 50px; flex-shrink: 0;
+      display: flex; flex-direction: column;
+      border-right: 1px solid #132030;
     }
-    #timeline-controls button {
-      pointer-events: all;
-      padding: 2px 8px;
-      font-size: 11px;
+    .tl-label-cell {
+      flex: 1;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 9px; font-weight: 700; letter-spacing: 0.5px;
+      writing-mode: vertical-lr; transform: rotate(180deg);
     }
+    .tl-label-cell:not(:last-child) { border-bottom: 1px solid #132030; }
+    .tl-label-normal { color: #42a5f5; }
+    .tl-label-drag   { color: #ffa726; }
+
+    /* Scrollable canvases */
+    #tl-scroll {
+      flex: 1; overflow-x: auto; overflow-y: hidden;
+      display: flex; flex-direction: column;
+    }
+    #tl-scroll::-webkit-scrollbar { height: 5px; }
+    #tl-scroll::-webkit-scrollbar-track { background: #0a1628; }
+    #tl-scroll::-webkit-scrollbar-thumb { background: #1e3c5e; border-radius: 3px; }
+    #tl-inner { display: flex; flex-direction: column; }
+    #normal-tl-canvas, #drag-tl-canvas { display: block; flex-shrink: 0; }
+    #tl-divider { height: 1px; background: #0e2040; flex-shrink: 0; }
+
+    /* Zoom controls */
+    #tl-controls {
+      height: 22px; flex-shrink: 0;
+      display: flex; align-items: center; justify-content: flex-end;
+      padding: 0 6px; gap: 4px;
+      border-top: 1px solid #0e2040;
+    }
+    #tl-controls .btn { padding: 1px 7px; font-size: 11px; }
 
     /* ── STATUS BAR ── */
     #status-bar {
-      display: flex;
-      gap: 16px;
-      padding: 3px 16px;
-      background: #060f1a;
-      border-top: 1px solid #1a3a5c;
-      font-size: 11px;
-      color: #5a8abf;
-      flex-shrink: 0;
+      display: flex; gap: 14px;
+      padding: 2px 14px;
+      background: #060f1a; border-top: 1px solid #1a3a5c;
+      font-size: 10px; color: #5a8abf; flex-shrink: 0;
     }
     #status-drag { color: #81c784; }
   </style>
@@ -133,20 +129,15 @@
 
 <div id="toolbar">
   <span class="logo">🎵 Note Timeline Editor</span>
-
   <label class="btn btn-primary" style="cursor:pointer;">
     📂 JSON 로드
     <input type="file" id="json-upload" accept=".json" style="display:none;">
   </label>
-
   <button class="btn btn-success" id="export-btn" disabled>💾 JSON 저장</button>
-
   <span class="tag" id="info-notes">노트: —</span>
   <span class="tag" id="info-bars">바: —</span>
-  <span class="tag tag-highlight" id="info-selected">선택된 바: —</span>
-
-  <button class="btn btn-secondary" id="snap-btn" title="0.5 단위 스냅 켜기/끄기">스냅 ✓</button>
-
+  <span class="tag tag-hl" id="info-selected">선택: —</span>
+  <button class="btn btn-secondary" id="snap-btn">스냅 ✓</button>
   <span class="tag" id="info-pos">마우스: —</span>
 </div>
 
@@ -155,9 +146,21 @@
     <canvas id="note-canvas"></canvas>
   </div>
 
-  <div id="timeline-wrapper">
-    <canvas id="timeline-canvas"></canvas>
-    <div id="timeline-controls">
+  <div id="timeline-area">
+    <div id="tl-main">
+      <div id="tl-labels">
+        <div class="tl-label-cell tl-label-normal">일반/롱</div>
+        <div class="tl-label-cell tl-label-drag">드래그</div>
+      </div>
+      <div id="tl-scroll">
+        <div id="tl-inner">
+          <canvas id="normal-tl-canvas"></canvas>
+          <div id="tl-divider"></div>
+          <canvas id="drag-tl-canvas"></canvas>
+        </div>
+      </div>
+    </div>
+    <div id="tl-controls">
       <button class="btn btn-secondary" id="tl-zoom-out">−</button>
       <button class="btn btn-secondary" id="tl-zoom-in">+</button>
     </div>
@@ -171,15 +174,33 @@
 
 <script>
 // ═══════════════════════════════════════════════
+//  CONSTANTS
+// ═══════════════════════════════════════════════
+const WORLD = { xMin: -7, xMax: 7, yMin: -3.5, yMax: 3.5 };
+const NOTE_R = 18;
+const NOTE_HIT_TOLERANCE = 4;
+const TL_PAD = 14;
+const TL_BAR_Y = 7;       // bar top offset within each timeline canvas
+const TL_BAR_H = 30;      // bar height (thin)
+const TL_PX_PER_SEC = 60;
+const TIME_GROUP_PRECISION = 6;
+// Bar lightness constants
+const BAR_BASE_L = 22;
+const BAR_L_PER_NOTE = 3;
+const BAR_MAX_L_BONUS = 15;
+
+// ═══════════════════════════════════════════════
 //  STATE
 // ═══════════════════════════════════════════════
 const S = {
-  rawNotes: null,       // flat array (mutated on drag)
-  bars: [],             // [{time, notes:[ref...]}]
-  selectedBar: -1,
-  dragging: null,       // {noteRef, startMx, startMy, startX, startY}
+  rawNotes: null,
+  normalBars: [],      // [{time, notes:[...]}]  – type 0/1/-1
+  dragChains: [],      // [{startTime, notes:[...]}]  – type 2 chains
+  selectedNormalBar: -1,
+  selectedDragChain: -1,
+  dragging: null,      // {noteRef, startMx, startMy, startX, startY}
   snapEnabled: true,
-  tlZoom: 1,            // pixels-per-second scale multiplier
+  tlZoom: 1,
 };
 
 // ═══════════════════════════════════════════════
@@ -187,37 +208,23 @@ const S = {
 // ═══════════════════════════════════════════════
 const noteCanvasEl  = document.getElementById('note-canvas');
 const noteCtx       = noteCanvasEl.getContext('2d');
-const tlCanvasEl    = document.getElementById('timeline-canvas');
-const tlCtx         = tlCanvasEl.getContext('2d');
+const normalTlEl    = document.getElementById('normal-tl-canvas');
+const normalTlCtx   = normalTlEl.getContext('2d');
+const dragTlEl      = document.getElementById('drag-tl-canvas');
+const dragTlCtx     = dragTlEl.getContext('2d');
 const noteWrapper   = document.getElementById('note-canvas-wrapper');
-const tlWrapper     = document.getElementById('timeline-wrapper');
-
-// ═══════════════════════════════════════════════
-//  CONSTANTS
-// ═══════════════════════════════════════════════
-const WORLD = { xMin: -7, xMax: 7, yMin: -3.5, yMax: 3.5 };
-const NOTE_R = 18;              // note circle radius (px)
-const NOTE_HIT_TOLERANCE = 4;   // extra px around note for easier click/drag selection
-const TL_PAD = 16;              // timeline left/right padding
-const TL_BAR_Y = 18;            // bar top offset inside timeline canvas
-const TL_BAR_H = 72;            // bar height
-const TL_PX_PER_SEC = 60;       // base pixels per second in timeline
-// Bar lightness ramp: starts at BASE_LIGHTNESS, increases by LIGHTNESS_PER_NOTE per note, caps at MAX_LIGHTNESS_BONUS added
-const BAR_BASE_LIGHTNESS = 22;
-const BAR_LIGHTNESS_PER_NOTE = 3;
-const BAR_MAX_LIGHTNESS_BONUS = 15;
-// Decimal places used to group notes with identical times into the same bar
-const TIME_GROUP_PRECISION = 6;
+const tlScroll      = document.getElementById('tl-scroll');
+const tlInner       = document.getElementById('tl-inner');
 
 // ═══════════════════════════════════════════════
 //  NOTE TYPE HELPERS
 // ═══════════════════════════════════════════════
 function noteColor(type) {
   switch (type) {
-    case  0: return '#42a5f5';   // normal  – blue
-    case  1: return '#66bb6a';   // long    – green
-    case  2: return '#ffa726';   // drag    – orange
-    case -1: return '#ef5350';   // end     – red
+    case  0: return '#42a5f5';
+    case  1: return '#66bb6a';
+    case  2: return '#ffa726';
+    case -1: return '#ef5350';
     default: return '#b0bec5';
   }
 }
@@ -242,18 +249,31 @@ document.getElementById('json-upload').addEventListener('change', e => {
     try {
       const data = JSON.parse(ev.target.result);
       const raw = Array.isArray(data) ? data : (data.notes || []);
-      // Deep-copy so we can mutate freely
-      S.rawNotes = raw.map(n => ({
-        type: n.type,
-        time: n.time,
-        position: { x: n.position.x, y: n.position.y },
-        duration: n.duration,
-        endPosition: { x: n.endPosition.x, y: n.endPosition.y },
-      }));
-      buildBars();
+      // Determine a safe base for auto-generated IDs (avoid collisions with existing IDs)
+      const maxExistingId = raw.reduce((m, n) => (n.id != null ? Math.max(m, n.id) : m), 0);
+      let nextAutoId = maxExistingId + 1;
+      S.rawNotes = raw.map(n => {
+        const note = {
+          id:       n.id ?? nextAutoId++,
+          type:     n.type,
+          time:     n.time,
+          position: { x: n.position.x, y: n.position.y },
+          duration: n.duration,
+        };
+        if (n.type === 2) {
+          // New format: uses nextId
+          note.nextId = (n.nextId !== undefined) ? n.nextId : null;
+        } else {
+          note.endPosition = n.endPosition
+            ? { x: n.endPosition.x, y: n.endPosition.y }
+            : { x: 0, y: 0 };
+        }
+        return note;
+      });
+      buildData();
       document.getElementById('export-btn').disabled = false;
       document.getElementById('status-msg').textContent =
-        `"${file.name}" 로드 완료 — 총 ${S.rawNotes.length}개 노트 / ${S.bars.length}개 바`;
+        `"${file.name}" 로드 완료 — 노트 ${S.rawNotes.length}개 / 바 ${S.normalBars.length}개 / 드래그체인 ${S.dragChains.length}개`;
       renderAll();
     } catch (err) {
       alert('JSON 파싱 오류: ' + err.message);
@@ -262,141 +282,229 @@ document.getElementById('json-upload').addEventListener('change', e => {
   reader.readAsText(file);
 });
 
-function buildBars() {
-  const map = new Map();
-  S.rawNotes.forEach(note => {
-    // Use TIME_GROUP_PRECISION decimals to group notes at the same timestamp
-    const key = note.time.toFixed(TIME_GROUP_PRECISION);
-    if (!map.has(key)) map.set(key, { time: note.time, notes: [] });
-    map.get(key).notes.push(note);
-  });
-  S.bars = Array.from(map.values()).sort((a, b) => a.time - b.time);
-  S.selectedBar = -1;
-
+// ═══════════════════════════════════════════════
+//  DATA BUILDING
+// ═══════════════════════════════════════════════
+function buildData() {
+  buildNormalBars();
+  buildDragChains();
+  S.selectedNormalBar = -1;
+  S.selectedDragChain = -1;
   document.getElementById('info-notes').textContent = `노트: ${S.rawNotes.length}`;
-  document.getElementById('info-bars').textContent  = `바: ${S.bars.length}`;
-  document.getElementById('info-selected').textContent = '선택된 바: —';
+  document.getElementById('info-bars').textContent  =
+    `바: ${S.normalBars.length} / 체인: ${S.dragChains.length}`;
+  document.getElementById('info-selected').textContent = '선택: —';
+}
+
+function buildNormalBars() {
+  const map = new Map();
+  S.rawNotes
+    .filter(n => n.type !== 2)
+    .forEach(note => {
+      const key = note.time.toFixed(TIME_GROUP_PRECISION);
+      if (!map.has(key)) map.set(key, { time: note.time, notes: [] });
+      map.get(key).notes.push(note);
+    });
+  S.normalBars = Array.from(map.values()).sort((a, b) => a.time - b.time);
+}
+
+function buildDragChains() {
+  const dragNotes = S.rawNotes.filter(n => n.type === 2);
+  // IDs that appear as nextId of some drag note → those are NOT chain starters
+  const referencedIds = new Set(
+    dragNotes.map(n => n.nextId).filter(id => id != null)
+  );
+  const starters = dragNotes.filter(n => !referencedIds.has(n.id));
+  const noteById = new Map(S.rawNotes.map(n => [n.id, n]));
+
+  S.dragChains = starters.map(starter => {
+    const notes = [];
+    const seen = new Set();
+    let cur = starter;
+    while (cur && !seen.has(cur.id)) {
+      seen.add(cur.id);
+      notes.push(cur);
+      cur = (cur.nextId != null) ? (noteById.get(cur.nextId) || null) : null;
+    }
+    return { startTime: starter.time, notes };
+  }).sort((a, b) => a.startTime - b.startTime);
 }
 
 // ═══════════════════════════════════════════════
 //  TIMELINE GEOMETRY
 // ═══════════════════════════════════════════════
-function tlPxPerSec() {
-  return TL_PX_PER_SEC * S.tlZoom;
-}
+function tlPxPerSec() { return TL_PX_PER_SEC * S.tlZoom; }
 
 function tlTotalWidth() {
-  if (!S.bars.length) return tlWrapper.clientWidth;
-  const maxT = S.bars[S.bars.length - 1].time;
-  return Math.max(tlWrapper.clientWidth, TL_PAD * 2 + maxT * tlPxPerSec() + 40);
+  let maxT = 0;
+  S.normalBars.forEach(b => { if (b.time > maxT) maxT = b.time; });
+  S.dragChains.forEach(c => {
+    const lastT = c.notes[c.notes.length - 1].time;
+    if (lastT > maxT) maxT = lastT;
+  });
+  return Math.max(tlScroll.clientWidth, TL_PAD * 2 + maxT * tlPxPerSec() + 40);
 }
 
-// Returns the left-edge pixel for a given time
-function tlTimeToX(t) {
-  return TL_PAD + t * tlPxPerSec();
-}
+function tlTimeToX(t) { return TL_PAD + t * tlPxPerSec(); }
 
-// Returns the width in pixels for bar[i]
-function tlBarWidth(i) {
-  const bars = S.bars;
-  if (bars.length === 1) return Math.max(40, tlWrapper.clientWidth - TL_PAD * 2);
+function normalBarWidth(i) {
+  const bars = S.normalBars;
+  if (bars.length === 1) return Math.max(30, tlScroll.clientWidth - TL_PAD * 2);
   const x0 = tlTimeToX(bars[i].time);
   if (i < bars.length - 1) {
     const x1 = tlTimeToX(bars[i + 1].time);
-    return Math.max(28, x1 - x0 - 3);
+    return Math.max(7, x1 - x0 - 2);
   }
-  return 40; // last bar fixed width
+  return 16;
+}
+
+function dragChainBarWidth(i) {
+  const chain = S.dragChains[i];
+  const lastT = chain.notes[chain.notes.length - 1].time;
+  // Width = full chain time span in px, minimum 20px
+  return Math.max(20, (lastT - chain.startTime) * tlPxPerSec() + 6);
 }
 
 // ═══════════════════════════════════════════════
-//  TIMELINE RENDER
+//  TIMELINE RENDER HELPERS
 // ═══════════════════════════════════════════════
-function renderTimeline() {
-  const W = tlCanvasEl.width;
-  const H = tlCanvasEl.height;
-  const ctx = tlCtx;
+function drawTimeAxis(ctx, W, bars, chains) {
+  // Determine max time across both timelines
+  let maxT = 1;
+  bars.forEach(b => { if (b.time > maxT) maxT = b.time; });
+  chains.forEach(c => {
+    const lt = c.notes[c.notes.length - 1].time;
+    if (lt > maxT) maxT = lt;
+  });
+  maxT += 1;
 
-  ctx.clearRect(0, 0, W, H);
-  ctx.fillStyle = '#0a1628';
-  ctx.fillRect(0, 0, W, H);
-
-  if (!S.bars.length) {
-    ctx.fillStyle = '#2a4a6a';
-    ctx.font = '13px Segoe UI';
-    ctx.textAlign = 'center';
-    ctx.fillText('JSON을 로드하면 타임라인이 표시됩니다', W / 2, H / 2);
-    return;
-  }
-
-  // Time axis line
-  const axisY = TL_BAR_Y + TL_BAR_H + 8;
-  ctx.strokeStyle = '#1a3a5c';
+  const axisY = TL_BAR_Y + TL_BAR_H + 3;
+  ctx.strokeStyle = '#132030';
   ctx.lineWidth = 1;
   ctx.beginPath();
   ctx.moveTo(TL_PAD, axisY);
   ctx.lineTo(W - TL_PAD, axisY);
   ctx.stroke();
 
-  // 1-second tick marks on axis
-  const maxT = S.bars[S.bars.length - 1].time + 1;
-  ctx.fillStyle = '#1a3a5c';
-  ctx.font = '9px Segoe UI';
+  ctx.font = '8px Segoe UI';
   ctx.textAlign = 'center';
   for (let t = 0; t <= maxT; t += 1) {
     const tx = tlTimeToX(t);
+    if (tx > W) break;
+    ctx.strokeStyle = '#132030';
+    ctx.lineWidth = 1;
     ctx.beginPath();
     ctx.moveTo(tx, axisY);
-    ctx.lineTo(tx, axisY + 4);
+    ctx.lineTo(tx, axisY + 3);
     ctx.stroke();
     if (t % 5 === 0) {
       ctx.fillStyle = '#2a5a7a';
-      ctx.fillText(t + 's', tx, axisY + 14);
+      ctx.fillText(t + 's', tx, axisY + 12);
     }
   }
+}
 
-  // Draw bars
-  S.bars.forEach((bar, i) => {
+// ═══════════════════════════════════════════════
+//  NORMAL TIMELINE RENDER
+// ═══════════════════════════════════════════════
+function renderNormalTimeline() {
+  const W = normalTlEl.width;
+  const H = normalTlEl.height;
+  const ctx = normalTlCtx;
+  ctx.clearRect(0, 0, W, H);
+  ctx.fillStyle = '#0a1628';
+  ctx.fillRect(0, 0, W, H);
+
+  if (!S.normalBars.length) {
+    ctx.fillStyle = '#2a4a6a';
+    ctx.font = '10px Segoe UI';
+    ctx.textAlign = 'center';
+    ctx.fillText('일반/롱 노트 없음', W / 2, H / 2 + 3);
+    return;
+  }
+
+  drawTimeAxis(ctx, W, S.normalBars, S.dragChains);
+
+  S.normalBars.forEach((bar, i) => {
     const bx = tlTimeToX(bar.time);
-    const bw = tlBarWidth(i);
-    const by = TL_BAR_Y;
-    const bh = TL_BAR_H;
-    const sel = i === S.selectedBar;
+    const bw = normalBarWidth(i);
+    const sel = i === S.selectedNormalBar;
 
-    // Bar fill
-    if (sel) {
-      ctx.fillStyle = '#1565c0';
-    } else {
-      // Vary hue slightly by note count for visual variety
-      const l = BAR_BASE_LIGHTNESS + Math.min(bar.notes.length * BAR_LIGHTNESS_PER_NOTE, BAR_MAX_LIGHTNESS_BONUS);
-      ctx.fillStyle = `hsl(210,60%,${l}%)`;
-    }
-    fillRoundRect(ctx, bx, by, bw, bh, 4);
+    ctx.fillStyle = sel
+      ? '#1565c0'
+      : `hsl(210,60%,${BAR_BASE_L + Math.min(bar.notes.length * BAR_L_PER_NOTE, BAR_MAX_L_BONUS)}%)`;
+    fillRoundRect(ctx, bx, TL_BAR_Y, bw, TL_BAR_H, 3);
 
-    // Border
     ctx.strokeStyle = sel ? '#64b5f6' : '#1e3c5e';
-    ctx.lineWidth = sel ? 2 : 1;
-    strokeRoundRect(ctx, bx, by, bw, bh, 4);
+    ctx.lineWidth = sel ? 1.5 : 0.5;
+    strokeRoundRect(ctx, bx, TL_BAR_Y, bw, TL_BAR_H, 3);
 
-    // Type color dots (top of bar)
+    // Type color chips (top strip)
     const types = [...new Set(bar.notes.map(n => n.type))];
     types.forEach((t, ti) => {
       ctx.fillStyle = noteColor(t);
-      ctx.fillRect(bx + 4 + ti * 9, by + 4, 7, 4);
+      ctx.fillRect(bx + 2 + ti * 7, TL_BAR_Y + 2, 5, 3);
     });
 
-    // Note count number
-    ctx.fillStyle = sel ? '#e3f2fd' : '#5a9ad0';
-    const fontSize = Math.min(14, Math.max(9, bw - 6));
-    ctx.font = `bold ${fontSize}px Segoe UI`;
-    ctx.textAlign = 'center';
-    ctx.fillText(bar.notes.length, bx + bw / 2, by + bh / 2 + 5);
-
-    // Time label below bar
-    if (bw >= 26) {
-      ctx.fillStyle = sel ? '#90caf9' : '#2a5a7a';
-      ctx.font = `${Math.min(10, bw - 4)}px Segoe UI`;
+    // Note count
+    if (bw >= 12) {
+      ctx.fillStyle = sel ? '#e3f2fd' : '#5a9ad0';
+      ctx.font = `bold ${Math.min(11, Math.max(8, bw - 4))}px Segoe UI`;
       ctx.textAlign = 'center';
-      ctx.fillText(bar.time.toFixed(1) + 's', bx + bw / 2, by + bh + 6);
+      ctx.fillText(bar.notes.length, bx + bw / 2, TL_BAR_Y + TL_BAR_H / 2 + 4);
+    }
+  });
+}
+
+// ═══════════════════════════════════════════════
+//  DRAG TIMELINE RENDER
+// ═══════════════════════════════════════════════
+function renderDragTimeline() {
+  const W = dragTlEl.width;
+  const H = dragTlEl.height;
+  const ctx = dragTlCtx;
+  ctx.clearRect(0, 0, W, H);
+  ctx.fillStyle = '#0a1628';
+  ctx.fillRect(0, 0, W, H);
+
+  if (!S.dragChains.length) {
+    ctx.fillStyle = '#3a2a0a';
+    ctx.font = '10px Segoe UI';
+    ctx.textAlign = 'center';
+    ctx.fillText('드래그 체인 없음', W / 2, H / 2 + 3);
+    return;
+  }
+
+  drawTimeAxis(ctx, W, S.normalBars, S.dragChains);
+
+  S.dragChains.forEach((chain, i) => {
+    const bx = tlTimeToX(chain.startTime);
+    const bw = dragChainBarWidth(i);
+    const sel = i === S.selectedDragChain;
+
+    // Bar fill
+    ctx.fillStyle = sel ? '#bf6500' : `hsl(35,65%,${BAR_BASE_L + Math.min(chain.notes.length * BAR_L_PER_NOTE, BAR_MAX_L_BONUS)}%)`;
+    fillRoundRect(ctx, bx, TL_BAR_Y, bw, TL_BAR_H, 3);
+
+    ctx.strokeStyle = sel ? '#ffa726' : '#5a3a0a';
+    ctx.lineWidth = sel ? 1.5 : 0.5;
+    strokeRoundRect(ctx, bx, TL_BAR_Y, bw, TL_BAR_H, 3);
+
+    // Node tick marks inside bar
+    chain.notes.forEach(note => {
+      const nx = tlTimeToX(note.time);
+      if (nx >= bx && nx <= bx + bw) {
+        ctx.fillStyle = sel ? '#ffe0a0' : '#c87000';
+        ctx.fillRect(nx - 1, TL_BAR_Y + 4, 2, TL_BAR_H - 8);
+      }
+    });
+
+    // Chain length label
+    if (bw >= 14) {
+      ctx.fillStyle = sel ? '#fff3e0' : '#a06010';
+      ctx.font = `bold ${Math.min(11, Math.max(8, bw - 4))}px Segoe UI`;
+      ctx.textAlign = 'center';
+      ctx.fillText(chain.notes.length, bx + bw / 2, TL_BAR_Y + TL_BAR_H / 2 + 4);
     }
   });
 }
@@ -431,15 +539,17 @@ function renderNoteCanvas() {
   ctx.clearRect(0, 0, W, H);
   ctx.fillStyle = '#060f1a';
   ctx.fillRect(0, 0, W, H);
-
   drawGrid(ctx, W, H);
 
-  if (S.selectedBar < 0 || !S.bars.length) {
+  const hasNormal = S.selectedNormalBar >= 0 && S.normalBars.length > 0;
+  const hasDrag   = S.selectedDragChain >= 0 && S.dragChains.length > 0;
+
+  if (!hasNormal && !hasDrag) {
     ctx.fillStyle = '#1e4060';
-    ctx.font = '15px Segoe UI';
+    ctx.font = '14px Segoe UI';
     ctx.textAlign = 'center';
     ctx.fillText(
-      S.bars.length
+      (S.normalBars.length || S.dragChains.length)
         ? '타임라인에서 바를 클릭하면 노트가 표시됩니다'
         : 'JSON 파일을 로드하세요',
       W / 2, H / 2
@@ -447,48 +557,39 @@ function renderNoteCanvas() {
     return;
   }
 
-  const bar = S.bars[S.selectedBar];
+  if (hasNormal) {
+    const bar = S.normalBars[S.selectedNormalBar];
+    renderNormalBarNotes(ctx, bar);
+    // Overlay
+    drawOverlay(ctx, W,
+      `바 ${S.selectedNormalBar + 1} / ${S.normalBars.length}   |   시간: ${bar.time.toFixed(3)}s   |   노트: ${bar.notes.length}개`);
+  } else {
+    const chain = S.dragChains[S.selectedDragChain];
+    renderDragChainNotes(ctx, chain);
+    // Overlay
+    drawOverlay(ctx, W,
+      `드래그 체인 ${S.selectedDragChain + 1} / ${S.dragChains.length}   |   시작: ${chain.startTime.toFixed(3)}s   |   노드: ${chain.notes.length}개`);
+  }
+}
 
-  bar.notes.forEach((note, idx) => {
+function drawOverlay(ctx, W, text) {
+  ctx.fillStyle = 'rgba(10,22,40,0.75)';
+  ctx.fillRect(0, 0, W, 24);
+  ctx.fillStyle = '#64b5f6';
+  ctx.font = '11px Segoe UI';
+  ctx.textAlign = 'left';
+  ctx.fillText(text, 10, 16);
+}
+
+function renderNormalBarNotes(ctx, bar) {
+  bar.notes.forEach(note => {
     const [cx, cy] = worldToCanvas(note.position.x, note.position.y);
     const isDragging = S.dragging && S.dragging.noteRef === note;
     const color = noteColor(note.type);
 
-    // Arrow from position → endPosition for drag notes
-    if (note.type === 2) {
-      const ep = note.endPosition;
-      const [ex, ey] = worldToCanvas(ep.x, ep.y);
-      if (Math.abs(ep.x) + Math.abs(ep.y) > 0.01) {
-        ctx.save();
-        ctx.strokeStyle = color;
-        ctx.lineWidth = 2;
-        ctx.globalAlpha = 0.55;
-        ctx.setLineDash([5, 4]);
-        ctx.beginPath();
-        ctx.moveTo(cx, cy);
-        ctx.lineTo(ex, ey);
-        ctx.stroke();
-        ctx.setLineDash([]);
-        ctx.globalAlpha = 0.7;
-        ctx.fillStyle = color;
-        ctx.beginPath();
-        ctx.arc(ex, ey, 5, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.restore();
-      }
-    }
-
-    // Glow on drag
     ctx.save();
-    if (isDragging) {
-      ctx.shadowColor = color;
-      ctx.shadowBlur = 24;
-    } else {
-      ctx.shadowColor = color;
-      ctx.shadowBlur = 8;
-    }
-
-    // Note circle
+    ctx.shadowColor = color;
+    ctx.shadowBlur = isDragging ? 24 : 8;
     ctx.beginPath();
     ctx.arc(cx, cy, NOTE_R, 0, Math.PI * 2);
     ctx.fillStyle = isDragging ? '#ffffff' : color;
@@ -498,66 +599,112 @@ function renderNoteCanvas() {
     ctx.stroke();
     ctx.restore();
 
-    // Note-type label inside circle
     ctx.fillStyle = isDragging ? color : '#0d1b2a';
-    ctx.font = 'bold 10px Segoe UI';
+    ctx.font = 'bold 9px Segoe UI';
     ctx.textAlign = 'center';
-    ctx.fillText(noteLabel(note.type), cx, cy + 4);
+    ctx.fillText(noteLabel(note.type), cx, cy + 3);
 
-    // Position label below circle
     ctx.fillStyle = '#5a9ad0';
-    ctx.font = '11px Segoe UI';
+    ctx.font = '10px Segoe UI';
     ctx.textAlign = 'center';
-    ctx.fillText(
-      `(${note.position.x.toFixed(2)}, ${note.position.y.toFixed(2)})`,
-      cx,
-      cy + NOTE_R + 14
-    );
+    ctx.fillText(`(${note.position.x.toFixed(2)}, ${note.position.y.toFixed(2)})`, cx, cy + NOTE_R + 13);
   });
+}
 
-  // Bar info overlay (top-left)
-  ctx.fillStyle = 'rgba(10,22,40,0.75)';
-  ctx.fillRect(0, 0, W, 26);
-  ctx.fillStyle = '#64b5f6';
-  ctx.font = '12px Segoe UI';
-  ctx.textAlign = 'left';
-  ctx.fillText(
-    `바 ${S.selectedBar + 1} / ${S.bars.length}   |   시간: ${bar.time.toFixed(4)}s   |   노트 수: ${bar.notes.length}`,
-    12, 17
-  );
+function renderDragChainNotes(ctx, chain) {
+  const notes = chain.notes;
+  const DRAG_COLOR = '#ffa726';
+
+  // Draw chain path lines first
+  if (notes.length > 1) {
+    ctx.save();
+    ctx.strokeStyle = DRAG_COLOR;
+    ctx.lineWidth = 2;
+    ctx.globalAlpha = 0.45;
+    ctx.setLineDash([6, 4]);
+    ctx.beginPath();
+    notes.forEach((note, i) => {
+      const [cx, cy] = worldToCanvas(note.position.x, note.position.y);
+      if (i === 0) ctx.moveTo(cx, cy);
+      else ctx.lineTo(cx, cy);
+    });
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.restore();
+
+    // Arrow heads along chain
+    for (let i = 0; i < notes.length - 1; i++) {
+      const [ax, ay] = worldToCanvas(notes[i].position.x, notes[i].position.y);
+      const [bx, by] = worldToCanvas(notes[i + 1].position.x, notes[i + 1].position.y);
+      const mx = (ax + bx) / 2;
+      const my = (ay + by) / 2;
+      const ang = Math.atan2(by - ay, bx - ax);
+      ctx.save();
+      ctx.translate(mx, my);
+      ctx.rotate(ang);
+      ctx.fillStyle = DRAG_COLOR;
+      ctx.globalAlpha = 0.6;
+      ctx.beginPath();
+      ctx.moveTo(7, 0); ctx.lineTo(-5, -4); ctx.lineTo(-5, 4);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+    }
+  }
+
+  // Draw node circles
+  notes.forEach((note, idx) => {
+    const [cx, cy] = worldToCanvas(note.position.x, note.position.y);
+    const isDragging = S.dragging && S.dragging.noteRef === note;
+
+    ctx.save();
+    ctx.shadowColor = DRAG_COLOR;
+    ctx.shadowBlur = isDragging ? 24 : 10;
+    ctx.beginPath();
+    ctx.arc(cx, cy, NOTE_R, 0, Math.PI * 2);
+    ctx.fillStyle = isDragging ? '#ffffff' : DRAG_COLOR;
+    ctx.fill();
+    ctx.strokeStyle = isDragging ? DRAG_COLOR : 'rgba(255,255,255,0.4)';
+    ctx.lineWidth = isDragging ? 2.5 : 1.5;
+    ctx.stroke();
+    ctx.restore();
+
+    // Sequence index inside
+    ctx.fillStyle = isDragging ? DRAG_COLOR : '#1a0800';
+    ctx.font = `bold 10px Segoe UI`;
+    ctx.textAlign = 'center';
+    ctx.fillText(idx + 1, cx, cy + 4);
+
+    // Coordinates below
+    ctx.fillStyle = '#c07020';
+    ctx.font = '10px Segoe UI';
+    ctx.textAlign = 'center';
+    ctx.fillText(`(${note.position.x.toFixed(2)}, ${note.position.y.toFixed(2)})`, cx, cy + NOTE_R + 13);
+  });
 }
 
 function drawGrid(ctx, W, H) {
-  // Minor grid lines
   ctx.lineWidth = 0.5;
   for (let x = Math.ceil(WORLD.xMin); x <= Math.floor(WORLD.xMax); x++) {
     const [px] = worldToCanvas(x, 0);
     ctx.strokeStyle = x === 0 ? 'rgba(42,90,140,0.8)' : 'rgba(26,58,92,0.4)';
-    ctx.beginPath();
-    ctx.moveTo(px, 0); ctx.lineTo(px, H);
-    ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(px, 0); ctx.lineTo(px, H); ctx.stroke();
     if (x !== 0) {
-      ctx.fillStyle = 'rgba(42,90,140,0.6)';
-      ctx.font = '10px Segoe UI';
-      ctx.textAlign = 'center';
+      ctx.fillStyle = 'rgba(42,90,140,0.5)';
+      ctx.font = '9px Segoe UI'; ctx.textAlign = 'center';
       ctx.fillText(x, px, H - 4);
     }
   }
   for (let y = Math.ceil(WORLD.yMin); y <= Math.floor(WORLD.yMax); y++) {
     const [, py] = worldToCanvas(0, y);
     ctx.strokeStyle = y === 0 ? 'rgba(42,90,140,0.8)' : 'rgba(26,58,92,0.4)';
-    ctx.beginPath();
-    ctx.moveTo(0, py); ctx.lineTo(W, py);
-    ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, py); ctx.lineTo(W, py); ctx.stroke();
     if (y !== 0) {
-      ctx.fillStyle = 'rgba(42,90,140,0.6)';
-      ctx.font = '10px Segoe UI';
-      ctx.textAlign = 'left';
-      ctx.fillText(y, 4, py + 4);
+      ctx.fillStyle = 'rgba(42,90,140,0.5)';
+      ctx.font = '9px Segoe UI'; ctx.textAlign = 'left';
+      ctx.fillText(y, 4, py + 3);
     }
   }
-
-  // Axes (thicker)
   const [ox, oy] = worldToCanvas(0, 0);
   ctx.strokeStyle = 'rgba(30,100,180,0.7)';
   ctx.lineWidth = 1.5;
@@ -565,68 +712,96 @@ function drawGrid(ctx, W, H) {
   ctx.moveTo(ox, 0); ctx.lineTo(ox, H);
   ctx.moveTo(0, oy); ctx.lineTo(W, oy);
   ctx.stroke();
-
-  // Origin label
-  ctx.fillStyle = 'rgba(42,90,140,0.6)';
-  ctx.font = '10px Segoe UI';
-  ctx.textAlign = 'left';
+  ctx.fillStyle = 'rgba(42,90,140,0.5)';
+  ctx.font = '9px Segoe UI'; ctx.textAlign = 'left';
   ctx.fillText('0', ox + 4, oy - 4);
 }
 
 // ═══════════════════════════════════════════════
-//  TIMELINE INTERACTION
+//  TIMELINE CLICK HANDLERS
 // ═══════════════════════════════════════════════
-tlCanvasEl.addEventListener('click', e => {
-  if (!S.bars.length) return;
-  const rect = tlCanvasEl.getBoundingClientRect();
-  // Account for scroll offset inside the wrapper
+normalTlEl.addEventListener('click', e => {
+  if (!S.normalBars.length) return;
+  const rect = normalTlEl.getBoundingClientRect();
   const mx = e.clientX - rect.left;
+  const my = e.clientY - rect.top;
+  if (my < TL_BAR_Y || my > TL_BAR_Y + TL_BAR_H) return;
 
-  for (let i = 0; i < S.bars.length; i++) {
-    const bx = tlTimeToX(S.bars[i].time);
-    const bw = tlBarWidth(i);
-    if (mx >= bx && mx <= bx + bw &&
-        e.clientY - rect.top >= TL_BAR_Y &&
-        e.clientY - rect.top <= TL_BAR_Y + TL_BAR_H) {
-      S.selectedBar = i;
+  for (let i = 0; i < S.normalBars.length; i++) {
+    const bx = tlTimeToX(S.normalBars[i].time);
+    const bw = normalBarWidth(i);
+    if (mx >= bx && mx <= bx + bw) {
+      S.selectedNormalBar = i;
+      S.selectedDragChain = -1;
       S.dragging = null;
       document.getElementById('info-selected').textContent =
-        `선택된 바: ${i + 1}번 (${S.bars[i].time.toFixed(3)}s, ${S.bars[i].notes.length}개)`;
+        `일반/롱 바 ${i + 1}번 (${S.normalBars[i].time.toFixed(2)}s, ${S.normalBars[i].notes.length}개)`;
       renderAll();
       return;
     }
   }
 });
 
-// Timeline zoom buttons
+dragTlEl.addEventListener('click', e => {
+  if (!S.dragChains.length) return;
+  const rect = dragTlEl.getBoundingClientRect();
+  const mx = e.clientX - rect.left;
+  const my = e.clientY - rect.top;
+  if (my < TL_BAR_Y || my > TL_BAR_Y + TL_BAR_H) return;
+
+  for (let i = 0; i < S.dragChains.length; i++) {
+    const bx = tlTimeToX(S.dragChains[i].startTime);
+    const bw = dragChainBarWidth(i);
+    if (mx >= bx && mx <= bx + bw) {
+      S.selectedDragChain = i;
+      S.selectedNormalBar = -1;
+      S.dragging = null;
+      document.getElementById('info-selected').textContent =
+        `드래그 체인 ${i + 1}번 (${S.dragChains[i].startTime.toFixed(2)}s, ${S.dragChains[i].notes.length}개 노드)`;
+      renderAll();
+      return;
+    }
+  }
+});
+
+// ═══════════════════════════════════════════════
+//  TIMELINE ZOOM
+// ═══════════════════════════════════════════════
 document.getElementById('tl-zoom-in').addEventListener('click', () => {
-  S.tlZoom = Math.min(S.tlZoom * 1.5, 10);
-  resizeTimeline();
-  renderTimeline();
+  S.tlZoom = Math.min(S.tlZoom * 1.5, 12);
+  resizeTimelines();
+  renderNormalTimeline();
+  renderDragTimeline();
 });
 document.getElementById('tl-zoom-out').addEventListener('click', () => {
   S.tlZoom = Math.max(S.tlZoom / 1.5, 0.2);
-  resizeTimeline();
-  renderTimeline();
+  resizeTimelines();
+  renderNormalTimeline();
+  renderDragTimeline();
 });
 
 // ═══════════════════════════════════════════════
-//  NOTE CANVAS INTERACTION (drag)
+//  NOTE CANVAS INTERACTION
 // ═══════════════════════════════════════════════
-noteCanvasEl.addEventListener('mousedown', e => {
-  if (S.selectedBar < 0) return;
-  const bar = S.bars[S.selectedBar];
-  const [mx, my] = mouseOnNote(e);
+function getDisplayNotes() {
+  if (S.selectedNormalBar >= 0 && S.normalBars.length > 0)
+    return S.normalBars[S.selectedNormalBar].notes;
+  if (S.selectedDragChain >= 0 && S.dragChains.length > 0)
+    return S.dragChains[S.selectedDragChain].notes;
+  return [];
+}
 
-  for (const note of bar.notes) {
+noteCanvasEl.addEventListener('mousedown', e => {
+  const notes = getDisplayNotes();
+  if (!notes.length) return;
+  const [mx, my] = mouseOnNote(e);
+  for (const note of notes) {
     const [cx, cy] = worldToCanvas(note.position.x, note.position.y);
     if (Math.hypot(mx - cx, my - cy) <= NOTE_R + NOTE_HIT_TOLERANCE) {
       S.dragging = {
         noteRef: note,
-        startMx: mx,
-        startMy: my,
-        startX: note.position.x,
-        startY: note.position.y,
+        startMx: mx, startMy: my,
+        startX: note.position.x, startY: note.position.y,
       };
       noteCanvasEl.style.cursor = 'grabbing';
       break;
@@ -634,14 +809,14 @@ noteCanvasEl.addEventListener('mousedown', e => {
   }
 });
 
-// Throttle mouse position DOM update via requestAnimationFrame
-let _rafPending = false;
+// Throttle mouse-position DOM update via requestAnimationFrame
+let infoPosUpdatePending = false;
 function scheduleInfoPosUpdate(text) {
-  if (_rafPending) return;
-  _rafPending = true;
+  if (infoPosUpdatePending) return;
+  infoPosUpdatePending = true;
   requestAnimationFrame(() => {
     document.getElementById('info-pos').textContent = text;
-    _rafPending = false;
+    infoPosUpdatePending = false;
   });
 }
 
@@ -651,36 +826,25 @@ noteCanvasEl.addEventListener('mousemove', e => {
   scheduleInfoPosUpdate(`마우스: (${wx.toFixed(2)}, ${wy.toFixed(2)})`);
 
   if (!S.dragging) {
-    // Update cursor
-    if (S.selectedBar >= 0) {
-      const bar = S.bars[S.selectedBar];
-      const hover = bar.notes.some(note => {
-        const [cx, cy] = worldToCanvas(note.position.x, note.position.y);
-        return Math.hypot(mx - cx, my - cy) <= NOTE_R + NOTE_HIT_TOLERANCE;
-      });
-      noteCanvasEl.style.cursor = hover ? 'grab' : 'crosshair';
-    }
+    const notes = getDisplayNotes();
+    const hover = notes.some(note => {
+      const [cx, cy] = worldToCanvas(note.position.x, note.position.y);
+      return Math.hypot(mx - cx, my - cy) <= NOTE_R + NOTE_HIT_TOLERANCE;
+    });
+    noteCanvasEl.style.cursor = hover ? 'grab' : 'crosshair';
     return;
   }
 
-  // Dragging: compute world delta
-  const dxPx = mx - S.dragging.startMx;
-  const dyPx = my - S.dragging.startMy;
   const W = noteCanvasEl.width;
   const H = noteCanvasEl.height;
-  const worldSpanX = WORLD.xMax - WORLD.xMin;
-  const worldSpanY = WORLD.yMax - WORLD.yMin;
-  const dwx = (dxPx / W) * worldSpanX;
-  const dwy = -(dyPx / H) * worldSpanY; // flip Y
+  const dxPx = mx - S.dragging.startMx;
+  const dyPx = my - S.dragging.startMy;
+  const dwx =  (dxPx / W) * (WORLD.xMax - WORLD.xMin);
+  const dwy = -(dyPx / H) * (WORLD.yMax - WORLD.yMin);
 
-  let newX = S.dragging.startX + dwx;
-  let newY = S.dragging.startY + dwy;
+  let newX = Math.max(WORLD.xMin, Math.min(WORLD.xMax, S.dragging.startX + dwx));
+  let newY = Math.max(WORLD.yMin, Math.min(WORLD.yMax, S.dragging.startY + dwy));
 
-  // Clamp to world
-  newX = Math.max(WORLD.xMin, Math.min(WORLD.xMax, newX));
-  newY = Math.max(WORLD.yMin, Math.min(WORLD.yMax, newY));
-
-  // Optional snap to 0.5
   if (S.snapEnabled) {
     newX = Math.round(newX * 2) / 2;
     newY = Math.round(newY * 2) / 2;
@@ -745,29 +909,36 @@ document.getElementById('export-btn').addEventListener('click', () => {
 // ═══════════════════════════════════════════════
 //  RESIZE & INIT
 // ═══════════════════════════════════════════════
-function resizeTimeline() {
+const TL_CANVAS_H = 55;   // each timeline canvas height
+
+function resizeTimelines() {
   const totalW = tlTotalWidth();
-  tlCanvasEl.width  = totalW;
-  tlCanvasEl.height = tlWrapper.clientHeight;
+  normalTlEl.width  = totalW;
+  normalTlEl.height = TL_CANVAS_H;
+  dragTlEl.width    = totalW;
+  dragTlEl.height   = TL_CANVAS_H;
+  // Let the inner div expand to fit canvases
+  tlInner.style.minWidth = totalW + 'px';
 }
 
 function resizeAll() {
   noteCanvasEl.width  = noteWrapper.clientWidth;
   noteCanvasEl.height = noteWrapper.clientHeight;
-  resizeTimeline();
+  resizeTimelines();
   renderAll();
 }
 
 function renderAll() {
   renderNoteCanvas();
-  renderTimeline();
+  renderNormalTimeline();
+  renderDragTimeline();
 }
 
 window.addEventListener('resize', resizeAll);
 resizeAll();
 
 // ═══════════════════════════════════════════════
-//  UTILITY: rounded rect helpers
+//  UTILITY: rounded rect
 // ═══════════════════════════════════════════════
 function roundRectPath(ctx, x, y, w, h, r) {
   r = Math.min(r, w / 2, h / 2);
@@ -783,14 +954,8 @@ function roundRectPath(ctx, x, y, w, h, r) {
   ctx.arcTo(x, y, x + r, y, r);
   ctx.closePath();
 }
-function fillRoundRect(ctx, x, y, w, h, r) {
-  roundRectPath(ctx, x, y, w, h, r);
-  ctx.fill();
-}
-function strokeRoundRect(ctx, x, y, w, h, r) {
-  roundRectPath(ctx, x, y, w, h, r);
-  ctx.stroke();
-}
+function fillRoundRect(ctx, x, y, w, h, r) { roundRectPath(ctx, x, y, w, h, r); ctx.fill(); }
+function strokeRoundRect(ctx, x, y, w, h, r) { roundRectPath(ctx, x, y, w, h, r); ctx.stroke(); }
 </script>
 </body>
 </html>
