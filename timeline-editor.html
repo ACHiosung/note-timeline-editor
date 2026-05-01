@@ -149,6 +149,8 @@
   <button class="btn btn-success" id="play-btn" disabled title="재생 / 정지">▶ 재생</button>
   <button class="btn btn-secondary" id="reset-btn" disabled title="처음으로 되감기">⏮</button>
   <button class="btn btn-secondary" id="tap-sound-btn" title="노트 타이밍에 효과음 재생">🥁 탭음 ✗</button>
+  <button class="btn btn-secondary" id="sfx-load-btn" title="로컬 wav 파일을 이펙트음으로 불러오기&#10;파일명: tap.wav / tap_long.wav / tap_end.wav">📂 이펙트음 불러오기</button>
+  <input type="file" id="sfx-file-input" accept=".wav,.ogg" multiple style="display:none">
   <span class="tag tag-hl" id="play-time" title="휠로 재생 시간 조절 (0.1s 단위)&#10;어디서든 Shift+휠도 가능">—</span>
 </div>
 
@@ -1486,6 +1488,34 @@ document.getElementById('tap-sound-btn').addEventListener('click', function () {
   this.textContent = tapEnabled ? '🥁 탭음 ✓' : '🥁 탭음 ✗';
   this.classList.toggle('btn-success',   tapEnabled);
   this.classList.toggle('btn-secondary', !tapEnabled);
+});
+
+// SFX load button – lets the user pick local wav/ogg files as tap sounds.
+// File-name → key mapping:  tap.*  → normal,  tap_long.* → long,  tap_end.* → end
+const SFX_NAME_MAP = {
+  'tap':     'normal',
+  'tap_long': 'long',
+  'tap_end':  'end',
+};
+document.getElementById('sfx-load-btn').addEventListener('click', () => {
+  document.getElementById('sfx-file-input').click();
+});
+document.getElementById('sfx-file-input').addEventListener('change', async function () {
+  let loaded = 0;
+  for (const file of Array.from(this.files)) {
+    const baseName = file.name.replace(/\.[^.]+$/, ''); // strip extension
+    const key = SFX_NAME_MAP[baseName];
+    if (!key) continue;
+    tapRawBuffers[key] = await file.arrayBuffer();
+    tapBuffers[key]    = null; // force re-decode on next playback
+    loaded++;
+  }
+  this.value = ''; // reset so same file can be re-selected
+  if (loaded > 0) {
+    const btn = document.getElementById('sfx-load-btn');
+    btn.classList.replace('btn-secondary', 'btn-success');
+    btn.textContent = `📂 이펙트음 ✓(${loaded})`;
+  }
 });
 
 // Schedule tap sounds for all notes that haven't passed yet.
