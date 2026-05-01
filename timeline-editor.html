@@ -543,17 +543,71 @@ function renderNoteCanvas() {
   }
 
   if (hasNormal) {
-    const bar = S.normalBars[S.selectedNormalBar];
+    const idx = S.selectedNormalBar;
+    const bar = S.normalBars[idx];
+
+    // Draw adjacent bars dimmed (left=blue tint, right=green tint)
+    if (idx > 0)
+      renderDimmedBarNotes(ctx, S.normalBars[idx - 1], 'left');
+    if (idx < S.normalBars.length - 1)
+      renderDimmedBarNotes(ctx, S.normalBars[idx + 1], 'right');
+
     renderNormalBarNotes(ctx, bar);
     // Overlay
     drawOverlay(ctx, W,
-      `바 ${S.selectedNormalBar + 1} / ${S.normalBars.length}   |   시간: ${bar.time.toFixed(3)}s   |   노트: ${bar.notes.length}개`);
+      `바 ${idx + 1} / ${S.normalBars.length}   |   시간: ${bar.time.toFixed(3)}s   |   노트: ${bar.notes.length}개`);
   } else {
     const chain = S.dragChains[S.selectedDragChain];
     renderDragChainNotes(ctx, chain);
     // Overlay
     drawOverlay(ctx, W,
       `드래그 체인 ${S.selectedDragChain + 1} / ${S.dragChains.length}   |   시작: ${chain.startTime.toFixed(3)}s   |   노드: ${chain.notes.length}개`);
+  }
+}
+
+// Render an adjacent bar's notes with reduced opacity to indicate left or right neighbour
+function renderDimmedBarNotes(ctx, bar, side) {
+  const alpha = 0.18;
+  const labelColor  = side === 'left' ? '#64b5f6' : '#66bb6a';
+  const arrowLabel  = side === 'left' ? '◀ 이전' : '다음 ▶';
+  const H = noteCanvasEl.height;
+
+  bar.notes.forEach(note => {
+    const [cx, cy] = worldToCanvas(note.position.x, note.position.y);
+    const color = noteColor(note.type);
+
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.shadowColor = color;
+    ctx.shadowBlur = 6;
+    ctx.beginPath();
+    ctx.arc(cx, cy, NOTE_R, 0, Math.PI * 2);
+    ctx.fillStyle = color;
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    ctx.restore();
+
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = '#0d1b2a';
+    ctx.font = 'bold 9px Segoe UI';
+    ctx.textAlign = 'center';
+    ctx.fillText(noteLabel(note.type), cx, cy + 3);
+    ctx.restore();
+  });
+
+  // Direction label drawn once at the edge of the canvas
+  if (bar.notes.length > 0) {
+    const edgeX = side === 'left' ? 36 : noteCanvasEl.width - 36;
+    ctx.save();
+    ctx.globalAlpha = 0.55;
+    ctx.fillStyle = labelColor;
+    ctx.font = 'bold 10px Segoe UI';
+    ctx.textAlign = 'center';
+    ctx.fillText(arrowLabel, edgeX, H / 2);
+    ctx.restore();
   }
 }
 
@@ -862,6 +916,53 @@ function mouseOnNote(e) {
   const rect = noteCanvasEl.getBoundingClientRect();
   return [e.clientX - rect.left, e.clientY - rect.top];
 }
+
+// ═══════════════════════════════════════════════
+//  KEYBOARD: ARROW KEY BAR NAVIGATION
+// ═══════════════════════════════════════════════
+function scrollTimelineToSelected() {
+  if (S.selectedNormalBar >= 0 && S.normalBars.length > 0) {
+    const cx = tlTimeToX(S.normalBars[S.selectedNormalBar].time);
+    tlScroll.scrollLeft = Math.max(0, cx - tlScroll.clientWidth / 2);
+  } else if (S.selectedDragChain >= 0 && S.dragChains.length > 0) {
+    const cx = tlTimeToX(S.dragChains[S.selectedDragChain].startTime);
+    tlScroll.scrollLeft = Math.max(0, cx - tlScroll.clientWidth / 2);
+  }
+}
+
+document.addEventListener('keydown', e => {
+  const key = e.key;
+  if (key !== 'ArrowLeft' && key !== 'ArrowRight') return;
+  // Don't intercept arrow keys while user is typing in an input/textarea
+  const tag = e.target && e.target.tagName;
+  if (tag === 'INPUT' || tag === 'TEXTAREA' || e.target.isContentEditable) return;
+
+  if (S.selectedNormalBar >= 0 && S.normalBars.length > 0) {
+    const newIdx = key === 'ArrowRight'
+      ? Math.min(S.selectedNormalBar + 1, S.normalBars.length - 1)
+      : Math.max(S.selectedNormalBar - 1, 0);
+    if (newIdx === S.selectedNormalBar) return;
+    S.selectedNormalBar = newIdx;
+    const bar = S.normalBars[newIdx];
+    document.getElementById('info-selected').textContent =
+      `일반/롱 바 ${newIdx + 1}번 (${bar.time.toFixed(2)}s, ${bar.notes.length}개)`;
+    e.preventDefault();
+    scrollTimelineToSelected();
+    renderAll();
+  } else if (S.selectedDragChain >= 0 && S.dragChains.length > 0) {
+    const newIdx = key === 'ArrowRight'
+      ? Math.min(S.selectedDragChain + 1, S.dragChains.length - 1)
+      : Math.max(S.selectedDragChain - 1, 0);
+    if (newIdx === S.selectedDragChain) return;
+    S.selectedDragChain = newIdx;
+    const chain = S.dragChains[newIdx];
+    document.getElementById('info-selected').textContent =
+      `드래그 체인 ${newIdx + 1}번 (${chain.startTime.toFixed(2)}s, ${chain.notes.length}개 노드)`;
+    e.preventDefault();
+    scrollTimelineToSelected();
+    renderAll();
+  }
+});
 
 // ═══════════════════════════════════════════════
 //  SNAP TOGGLE
