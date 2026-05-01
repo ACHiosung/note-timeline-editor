@@ -53,6 +53,7 @@
       font-size: 10px; white-space: nowrap;
     }
     .tag-hl { background: #1a3a5c; color: #64b5f6; font-weight: 700; }
+    #play-time { cursor: ns-resize; }
     #info-pos { margin-left: auto; }
 
     /* ── MAIN ── */
@@ -148,7 +149,7 @@
   <button class="btn btn-success" id="play-btn" disabled title="재생 / 정지">▶ 재생</button>
   <button class="btn btn-secondary" id="reset-btn" disabled title="처음으로 되감기">⏮</button>
   <button class="btn btn-secondary" id="tap-sound-btn" title="노트 타이밍에 효과음 재생">🥁 탭음 ✗</button>
-  <span class="tag tag-hl" id="play-time">—</span>
+  <span class="tag tag-hl" id="play-time" title="휠로 재생 시간 조절 (0.1s 단위)&#10;캔버스·타임라인에서 Ctrl+휠도 가능">—</span>
 </div>
 
 <div id="main-area">
@@ -1435,25 +1436,35 @@ const SFX_FILES = {
 };
 
 let tapEnabled         = false;
+// Raw ArrayBuffers fetched at startup; decoded into AudioBuffers lazily on first play
+const tapRawBuffers    = { normal: null, long: null, end: null };
 const tapBuffers       = { normal: null, long: null, end: null };
 let   tapScheduled     = new Set();   // BufferSourceNode instances waiting to fire
 
-// Load all sfx files silently at startup
+// Fetch sfx files as raw ArrayBuffers silently at startup (no AudioContext needed yet)
 (async () => {
-  if (!window.AudioContext && !window.webkitAudioContext) return;
-  const ctx = new (window.AudioContext || window.webkitAudioContext)();
-  // We'll re-use audioCtxPb later; keep a separate short-lived ctx just for
-  // decoding so we don't depend on audioCtxPb being initialised yet.
   for (const [key, path] of Object.entries(SFX_FILES)) {
     try {
       const res = await fetch(path);
       if (!res.ok) continue;
-      const buf = await res.arrayBuffer();
-      tapBuffers[key] = await ctx.decodeAudioData(buf);
+      tapRawBuffers[key] = await res.arrayBuffer();
     } catch (_) { /* file missing – silently skip */ }
   }
-  await ctx.close();
 })();
+
+// Decode raw buffers into AudioBuffers using the live audioCtxPb.
+// Called just before scheduling so we always use the current context.
+async function ensureTapBuffersDecoded() {
+  if (!audioCtxPb) return;
+  for (const key of Object.keys(tapRawBuffers)) {
+    if (tapRawBuffers[key] && !tapBuffers[key]) {
+      try {
+        // slice(0) so the ArrayBuffer isn't neutered after decoding
+        tapBuffers[key] = await audioCtxPb.decodeAudioData(tapRawBuffers[key].slice(0));
+      } catch (_) { /* skip undecodable file */ }
+    }
+  }
+}
 
 // Toggle button
 document.getElementById('tap-sound-btn').addEventListener('click', function () {
@@ -1465,8 +1476,9 @@ document.getElementById('tap-sound-btn').addEventListener('click', function () {
 
 // Schedule tap sounds for all notes that haven't passed yet.
 // Called inside startPlayback() after playStartAudioT is set.
-function scheduleTapSounds() {
+async function scheduleTapSounds() {
   if (!tapEnabled || !S.rawNotes || !audioCtxPb) return;
+  await ensureTapBuffersDecoded();
 
   // Collect unique times and their note types
   // (multiple notes at the same time → one tap, but use the "loudest" type priority)
@@ -1611,6 +1623,48 @@ function stopPlayback(resetToStart) {
   // Redraw editor view
   renderAll();
 }
+
+// ═══════════════════════════════════════════════
+//  WHEEL SEEK
+// ═══════════════════════════════════════════════
+// Wheel on the play-time display seeks ±0.1 s per notch.
+// Ctrl+Wheel anywhere on the note canvas or timeline also seeks.
+const WHEEL_STEP = 0.1; // seconds per wheel notch
+
+function seekByDelta(deltaSec) {
+  if (!audioBuffer) return;
+  const maxT  = audioBuffer.duration;
+  const newT  = Math.max(0, Math.min(maxT, (isPlaying ? currentPlayTime : playbackOffset) + deltaSec));
+  if (isPlaying) {
+    // Stop, update offset, restart
+    stopPlayback(false);
+    playbackOffset  = newT;
+    currentPlayTime = newT;
+    document.getElementById('play-time').textContent = newT.toFixed(2) + 's';
+    startPlayback();
+  } else {
+    playbackOffset  = newT;
+    currentPlayTime = newT;
+    document.getElementById('play-time').textContent = newT.toFixed(2) + 's';
+    renderAll();
+  }
+}
+
+document.getElementById('play-time').addEventListener('wheel', e => {
+  e.preventDefault();
+  const notches = e.deltaY > 0 ? 1 : -1;
+  seekByDelta(notches * WHEEL_STEP);
+}, { passive: false });
+
+// Ctrl+Wheel on note canvas or timeline area seeks (normal wheel still zooms/scrolls)
+[document.getElementById('note-canvas'), document.getElementById('tl-scroll')].forEach(el => {
+  el.addEventListener('wheel', e => {
+    if (!e.ctrlKey) return;
+    e.preventDefault();
+    const notches = e.deltaY > 0 ? 1 : -1;
+    seekByDelta(notches * WHEEL_STEP);
+  }, { passive: false });
+});
 
 function playLoop() {
   if (!isPlaying) return;
