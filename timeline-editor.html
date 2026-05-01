@@ -1,0 +1,796 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Note Timeline Editor</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: #0d1b2a;
+      color: #d0e8ff;
+      font-family: 'Segoe UI', Arial, sans-serif;
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      overflow: hidden;
+      user-select: none;
+    }
+
+    /* ── TOOLBAR ── */
+    #toolbar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 16px;
+      background: #0a1628;
+      border-bottom: 1px solid #1a3a5c;
+      flex-shrink: 0;
+      flex-wrap: wrap;
+    }
+    #toolbar .logo {
+      font-weight: 700;
+      font-size: 15px;
+      color: #64b5f6;
+      white-space: nowrap;
+    }
+    .btn {
+      padding: 5px 14px;
+      border-radius: 5px;
+      border: none;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 600;
+      transition: background 0.15s;
+      white-space: nowrap;
+    }
+    .btn-primary { background: #1565c0; color: #fff; }
+    .btn-primary:hover { background: #1976d2; }
+    .btn-success { background: #1b5e20; color: #a5d6a7; }
+    .btn-success:hover:not(:disabled) { background: #2e7d32; }
+    .btn-success:disabled { opacity: 0.4; cursor: default; }
+    .btn-secondary { background: #1a3a5c; color: #90caf9; }
+    .btn-secondary:hover { background: #1e4976; }
+    .tag {
+      background: #112244;
+      color: #90caf9;
+      padding: 4px 10px;
+      border-radius: 4px;
+      font-size: 11px;
+      white-space: nowrap;
+    }
+    .tag-highlight { background: #1a3a5c; color: #64b5f6; font-weight: 700; }
+    #info-pos { margin-left: auto; }
+
+    /* ── MAIN AREA ── */
+    #main-area {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      min-height: 0;
+    }
+
+    /* Note canvas wrapper */
+    #note-canvas-wrapper {
+      flex: 1;
+      position: relative;
+      overflow: hidden;
+      min-height: 0;
+    }
+    #note-canvas {
+      display: block;
+      background: #060f1a;
+    }
+
+    /* Timeline wrapper */
+    #timeline-wrapper {
+      height: 130px;
+      position: relative;
+      background: #0a1628;
+      border-top: 2px solid #1a3a5c;
+      overflow-x: auto;
+      overflow-y: hidden;
+      flex-shrink: 0;
+    }
+    #timeline-wrapper::-webkit-scrollbar { height: 6px; }
+    #timeline-wrapper::-webkit-scrollbar-track { background: #0a1628; }
+    #timeline-wrapper::-webkit-scrollbar-thumb { background: #1a3a5c; border-radius: 3px; }
+    #timeline-canvas { display: block; }
+
+    /* Timeline controls (floating over the wrapper) */
+    #timeline-controls {
+      position: absolute;
+      top: 4px;
+      right: 8px;
+      display: flex;
+      gap: 6px;
+      z-index: 10;
+      pointer-events: none;
+    }
+    #timeline-controls button {
+      pointer-events: all;
+      padding: 2px 8px;
+      font-size: 11px;
+    }
+
+    /* ── STATUS BAR ── */
+    #status-bar {
+      display: flex;
+      gap: 16px;
+      padding: 3px 16px;
+      background: #060f1a;
+      border-top: 1px solid #1a3a5c;
+      font-size: 11px;
+      color: #5a8abf;
+      flex-shrink: 0;
+    }
+    #status-drag { color: #81c784; }
+  </style>
+</head>
+<body>
+
+<div id="toolbar">
+  <span class="logo">🎵 Note Timeline Editor</span>
+
+  <label class="btn btn-primary" style="cursor:pointer;">
+    📂 JSON 로드
+    <input type="file" id="json-upload" accept=".json" style="display:none;">
+  </label>
+
+  <button class="btn btn-success" id="export-btn" disabled>💾 JSON 저장</button>
+
+  <span class="tag" id="info-notes">노트: —</span>
+  <span class="tag" id="info-bars">바: —</span>
+  <span class="tag tag-highlight" id="info-selected">선택된 바: —</span>
+
+  <button class="btn btn-secondary" id="snap-btn" title="0.5 단위 스냅 켜기/끄기">스냅 ✓</button>
+
+  <span class="tag" id="info-pos">마우스: —</span>
+</div>
+
+<div id="main-area">
+  <div id="note-canvas-wrapper">
+    <canvas id="note-canvas"></canvas>
+  </div>
+
+  <div id="timeline-wrapper">
+    <canvas id="timeline-canvas"></canvas>
+    <div id="timeline-controls">
+      <button class="btn btn-secondary" id="tl-zoom-out">−</button>
+      <button class="btn btn-secondary" id="tl-zoom-in">+</button>
+    </div>
+  </div>
+</div>
+
+<div id="status-bar">
+  <span id="status-msg">JSON 파일을 로드하면 타임라인과 노트 에디터가 활성화됩니다.</span>
+  <span id="status-drag"></span>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════
+//  STATE
+// ═══════════════════════════════════════════════
+const S = {
+  rawNotes: null,       // flat array (mutated on drag)
+  bars: [],             // [{time, notes:[ref...]}]
+  selectedBar: -1,
+  dragging: null,       // {noteRef, startMx, startMy, startX, startY}
+  snapEnabled: true,
+  tlZoom: 1,            // pixels-per-second scale multiplier
+};
+
+// ═══════════════════════════════════════════════
+//  DOM REFS
+// ═══════════════════════════════════════════════
+const noteCanvasEl  = document.getElementById('note-canvas');
+const noteCtx       = noteCanvasEl.getContext('2d');
+const tlCanvasEl    = document.getElementById('timeline-canvas');
+const tlCtx         = tlCanvasEl.getContext('2d');
+const noteWrapper   = document.getElementById('note-canvas-wrapper');
+const tlWrapper     = document.getElementById('timeline-wrapper');
+
+// ═══════════════════════════════════════════════
+//  CONSTANTS
+// ═══════════════════════════════════════════════
+const WORLD = { xMin: -7, xMax: 7, yMin: -3.5, yMax: 3.5 };
+const NOTE_R = 18;              // note circle radius (px)
+const NOTE_HIT_TOLERANCE = 4;   // extra px around note for easier click/drag selection
+const TL_PAD = 16;              // timeline left/right padding
+const TL_BAR_Y = 18;            // bar top offset inside timeline canvas
+const TL_BAR_H = 72;            // bar height
+const TL_PX_PER_SEC = 60;       // base pixels per second in timeline
+// Bar lightness ramp: starts at BASE_LIGHTNESS, increases by LIGHTNESS_PER_NOTE per note, caps at MAX_LIGHTNESS_BONUS added
+const BAR_BASE_LIGHTNESS = 22;
+const BAR_LIGHTNESS_PER_NOTE = 3;
+const BAR_MAX_LIGHTNESS_BONUS = 15;
+// Decimal places used to group notes with identical times into the same bar
+const TIME_GROUP_PRECISION = 6;
+
+// ═══════════════════════════════════════════════
+//  NOTE TYPE HELPERS
+// ═══════════════════════════════════════════════
+function noteColor(type) {
+  switch (type) {
+    case  0: return '#42a5f5';   // normal  – blue
+    case  1: return '#66bb6a';   // long    – green
+    case  2: return '#ffa726';   // drag    – orange
+    case -1: return '#ef5350';   // end     – red
+    default: return '#b0bec5';
+  }
+}
+function noteLabel(type) {
+  switch (type) {
+    case  0: return '일반';
+    case  1: return '롱';
+    case  2: return '드래그';
+    case -1: return '엔드';
+    default: return '?';
+  }
+}
+
+// ═══════════════════════════════════════════════
+//  JSON LOAD
+// ═══════════════════════════════════════════════
+document.getElementById('json-upload').addEventListener('change', e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    try {
+      const data = JSON.parse(ev.target.result);
+      const raw = Array.isArray(data) ? data : (data.notes || []);
+      // Deep-copy so we can mutate freely
+      S.rawNotes = raw.map(n => ({
+        type: n.type,
+        time: n.time,
+        position: { x: n.position.x, y: n.position.y },
+        duration: n.duration,
+        endPosition: { x: n.endPosition.x, y: n.endPosition.y },
+      }));
+      buildBars();
+      document.getElementById('export-btn').disabled = false;
+      document.getElementById('status-msg').textContent =
+        `"${file.name}" 로드 완료 — 총 ${S.rawNotes.length}개 노트 / ${S.bars.length}개 바`;
+      renderAll();
+    } catch (err) {
+      alert('JSON 파싱 오류: ' + err.message);
+    }
+  };
+  reader.readAsText(file);
+});
+
+function buildBars() {
+  const map = new Map();
+  S.rawNotes.forEach(note => {
+    // Use TIME_GROUP_PRECISION decimals to group notes at the same timestamp
+    const key = note.time.toFixed(TIME_GROUP_PRECISION);
+    if (!map.has(key)) map.set(key, { time: note.time, notes: [] });
+    map.get(key).notes.push(note);
+  });
+  S.bars = Array.from(map.values()).sort((a, b) => a.time - b.time);
+  S.selectedBar = -1;
+
+  document.getElementById('info-notes').textContent = `노트: ${S.rawNotes.length}`;
+  document.getElementById('info-bars').textContent  = `바: ${S.bars.length}`;
+  document.getElementById('info-selected').textContent = '선택된 바: —';
+}
+
+// ═══════════════════════════════════════════════
+//  TIMELINE GEOMETRY
+// ═══════════════════════════════════════════════
+function tlPxPerSec() {
+  return TL_PX_PER_SEC * S.tlZoom;
+}
+
+function tlTotalWidth() {
+  if (!S.bars.length) return tlWrapper.clientWidth;
+  const maxT = S.bars[S.bars.length - 1].time;
+  return Math.max(tlWrapper.clientWidth, TL_PAD * 2 + maxT * tlPxPerSec() + 40);
+}
+
+// Returns the left-edge pixel for a given time
+function tlTimeToX(t) {
+  return TL_PAD + t * tlPxPerSec();
+}
+
+// Returns the width in pixels for bar[i]
+function tlBarWidth(i) {
+  const bars = S.bars;
+  if (bars.length === 1) return Math.max(40, tlWrapper.clientWidth - TL_PAD * 2);
+  const x0 = tlTimeToX(bars[i].time);
+  if (i < bars.length - 1) {
+    const x1 = tlTimeToX(bars[i + 1].time);
+    return Math.max(28, x1 - x0 - 3);
+  }
+  return 40; // last bar fixed width
+}
+
+// ═══════════════════════════════════════════════
+//  TIMELINE RENDER
+// ═══════════════════════════════════════════════
+function renderTimeline() {
+  const W = tlCanvasEl.width;
+  const H = tlCanvasEl.height;
+  const ctx = tlCtx;
+
+  ctx.clearRect(0, 0, W, H);
+  ctx.fillStyle = '#0a1628';
+  ctx.fillRect(0, 0, W, H);
+
+  if (!S.bars.length) {
+    ctx.fillStyle = '#2a4a6a';
+    ctx.font = '13px Segoe UI';
+    ctx.textAlign = 'center';
+    ctx.fillText('JSON을 로드하면 타임라인이 표시됩니다', W / 2, H / 2);
+    return;
+  }
+
+  // Time axis line
+  const axisY = TL_BAR_Y + TL_BAR_H + 8;
+  ctx.strokeStyle = '#1a3a5c';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(TL_PAD, axisY);
+  ctx.lineTo(W - TL_PAD, axisY);
+  ctx.stroke();
+
+  // 1-second tick marks on axis
+  const maxT = S.bars[S.bars.length - 1].time + 1;
+  ctx.fillStyle = '#1a3a5c';
+  ctx.font = '9px Segoe UI';
+  ctx.textAlign = 'center';
+  for (let t = 0; t <= maxT; t += 1) {
+    const tx = tlTimeToX(t);
+    ctx.beginPath();
+    ctx.moveTo(tx, axisY);
+    ctx.lineTo(tx, axisY + 4);
+    ctx.stroke();
+    if (t % 5 === 0) {
+      ctx.fillStyle = '#2a5a7a';
+      ctx.fillText(t + 's', tx, axisY + 14);
+    }
+  }
+
+  // Draw bars
+  S.bars.forEach((bar, i) => {
+    const bx = tlTimeToX(bar.time);
+    const bw = tlBarWidth(i);
+    const by = TL_BAR_Y;
+    const bh = TL_BAR_H;
+    const sel = i === S.selectedBar;
+
+    // Bar fill
+    if (sel) {
+      ctx.fillStyle = '#1565c0';
+    } else {
+      // Vary hue slightly by note count for visual variety
+      const l = BAR_BASE_LIGHTNESS + Math.min(bar.notes.length * BAR_LIGHTNESS_PER_NOTE, BAR_MAX_LIGHTNESS_BONUS);
+      ctx.fillStyle = `hsl(210,60%,${l}%)`;
+    }
+    fillRoundRect(ctx, bx, by, bw, bh, 4);
+
+    // Border
+    ctx.strokeStyle = sel ? '#64b5f6' : '#1e3c5e';
+    ctx.lineWidth = sel ? 2 : 1;
+    strokeRoundRect(ctx, bx, by, bw, bh, 4);
+
+    // Type color dots (top of bar)
+    const types = [...new Set(bar.notes.map(n => n.type))];
+    types.forEach((t, ti) => {
+      ctx.fillStyle = noteColor(t);
+      ctx.fillRect(bx + 4 + ti * 9, by + 4, 7, 4);
+    });
+
+    // Note count number
+    ctx.fillStyle = sel ? '#e3f2fd' : '#5a9ad0';
+    const fontSize = Math.min(14, Math.max(9, bw - 6));
+    ctx.font = `bold ${fontSize}px Segoe UI`;
+    ctx.textAlign = 'center';
+    ctx.fillText(bar.notes.length, bx + bw / 2, by + bh / 2 + 5);
+
+    // Time label below bar
+    if (bw >= 26) {
+      ctx.fillStyle = sel ? '#90caf9' : '#2a5a7a';
+      ctx.font = `${Math.min(10, bw - 4)}px Segoe UI`;
+      ctx.textAlign = 'center';
+      ctx.fillText(bar.time.toFixed(1) + 's', bx + bw / 2, by + bh + 6);
+    }
+  });
+}
+
+// ═══════════════════════════════════════════════
+//  NOTE CANVAS GEOMETRY
+// ═══════════════════════════════════════════════
+function worldToCanvas(wx, wy) {
+  const W = noteCanvasEl.width;
+  const H = noteCanvasEl.height;
+  const px = (wx - WORLD.xMin) / (WORLD.xMax - WORLD.xMin) * W;
+  const py = (1 - (wy - WORLD.yMin) / (WORLD.yMax - WORLD.yMin)) * H;
+  return [px, py];
+}
+
+function canvasToWorld(cx, cy) {
+  const W = noteCanvasEl.width;
+  const H = noteCanvasEl.height;
+  const wx = (cx / W) * (WORLD.xMax - WORLD.xMin) + WORLD.xMin;
+  const wy = (1 - cy / H) * (WORLD.yMax - WORLD.yMin) + WORLD.yMin;
+  return [wx, wy];
+}
+
+// ═══════════════════════════════════════════════
+//  NOTE CANVAS RENDER
+// ═══════════════════════════════════════════════
+function renderNoteCanvas() {
+  const ctx = noteCtx;
+  const W = noteCanvasEl.width;
+  const H = noteCanvasEl.height;
+
+  ctx.clearRect(0, 0, W, H);
+  ctx.fillStyle = '#060f1a';
+  ctx.fillRect(0, 0, W, H);
+
+  drawGrid(ctx, W, H);
+
+  if (S.selectedBar < 0 || !S.bars.length) {
+    ctx.fillStyle = '#1e4060';
+    ctx.font = '15px Segoe UI';
+    ctx.textAlign = 'center';
+    ctx.fillText(
+      S.bars.length
+        ? '타임라인에서 바를 클릭하면 노트가 표시됩니다'
+        : 'JSON 파일을 로드하세요',
+      W / 2, H / 2
+    );
+    return;
+  }
+
+  const bar = S.bars[S.selectedBar];
+
+  bar.notes.forEach((note, idx) => {
+    const [cx, cy] = worldToCanvas(note.position.x, note.position.y);
+    const isDragging = S.dragging && S.dragging.noteRef === note;
+    const color = noteColor(note.type);
+
+    // Arrow from position → endPosition for drag notes
+    if (note.type === 2) {
+      const ep = note.endPosition;
+      const [ex, ey] = worldToCanvas(ep.x, ep.y);
+      if (Math.abs(ep.x) + Math.abs(ep.y) > 0.01) {
+        ctx.save();
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 2;
+        ctx.globalAlpha = 0.55;
+        ctx.setLineDash([5, 4]);
+        ctx.beginPath();
+        ctx.moveTo(cx, cy);
+        ctx.lineTo(ex, ey);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.globalAlpha = 0.7;
+        ctx.fillStyle = color;
+        ctx.beginPath();
+        ctx.arc(ex, ey, 5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
+    }
+
+    // Glow on drag
+    ctx.save();
+    if (isDragging) {
+      ctx.shadowColor = color;
+      ctx.shadowBlur = 24;
+    } else {
+      ctx.shadowColor = color;
+      ctx.shadowBlur = 8;
+    }
+
+    // Note circle
+    ctx.beginPath();
+    ctx.arc(cx, cy, NOTE_R, 0, Math.PI * 2);
+    ctx.fillStyle = isDragging ? '#ffffff' : color;
+    ctx.fill();
+    ctx.strokeStyle = isDragging ? color : 'rgba(255,255,255,0.4)';
+    ctx.lineWidth = isDragging ? 2.5 : 1.5;
+    ctx.stroke();
+    ctx.restore();
+
+    // Note-type label inside circle
+    ctx.fillStyle = isDragging ? color : '#0d1b2a';
+    ctx.font = 'bold 10px Segoe UI';
+    ctx.textAlign = 'center';
+    ctx.fillText(noteLabel(note.type), cx, cy + 4);
+
+    // Position label below circle
+    ctx.fillStyle = '#5a9ad0';
+    ctx.font = '11px Segoe UI';
+    ctx.textAlign = 'center';
+    ctx.fillText(
+      `(${note.position.x.toFixed(2)}, ${note.position.y.toFixed(2)})`,
+      cx,
+      cy + NOTE_R + 14
+    );
+  });
+
+  // Bar info overlay (top-left)
+  ctx.fillStyle = 'rgba(10,22,40,0.75)';
+  ctx.fillRect(0, 0, W, 26);
+  ctx.fillStyle = '#64b5f6';
+  ctx.font = '12px Segoe UI';
+  ctx.textAlign = 'left';
+  ctx.fillText(
+    `바 ${S.selectedBar + 1} / ${S.bars.length}   |   시간: ${bar.time.toFixed(4)}s   |   노트 수: ${bar.notes.length}`,
+    12, 17
+  );
+}
+
+function drawGrid(ctx, W, H) {
+  // Minor grid lines
+  ctx.lineWidth = 0.5;
+  for (let x = Math.ceil(WORLD.xMin); x <= Math.floor(WORLD.xMax); x++) {
+    const [px] = worldToCanvas(x, 0);
+    ctx.strokeStyle = x === 0 ? 'rgba(42,90,140,0.8)' : 'rgba(26,58,92,0.4)';
+    ctx.beginPath();
+    ctx.moveTo(px, 0); ctx.lineTo(px, H);
+    ctx.stroke();
+    if (x !== 0) {
+      ctx.fillStyle = 'rgba(42,90,140,0.6)';
+      ctx.font = '10px Segoe UI';
+      ctx.textAlign = 'center';
+      ctx.fillText(x, px, H - 4);
+    }
+  }
+  for (let y = Math.ceil(WORLD.yMin); y <= Math.floor(WORLD.yMax); y++) {
+    const [, py] = worldToCanvas(0, y);
+    ctx.strokeStyle = y === 0 ? 'rgba(42,90,140,0.8)' : 'rgba(26,58,92,0.4)';
+    ctx.beginPath();
+    ctx.moveTo(0, py); ctx.lineTo(W, py);
+    ctx.stroke();
+    if (y !== 0) {
+      ctx.fillStyle = 'rgba(42,90,140,0.6)';
+      ctx.font = '10px Segoe UI';
+      ctx.textAlign = 'left';
+      ctx.fillText(y, 4, py + 4);
+    }
+  }
+
+  // Axes (thicker)
+  const [ox, oy] = worldToCanvas(0, 0);
+  ctx.strokeStyle = 'rgba(30,100,180,0.7)';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(ox, 0); ctx.lineTo(ox, H);
+  ctx.moveTo(0, oy); ctx.lineTo(W, oy);
+  ctx.stroke();
+
+  // Origin label
+  ctx.fillStyle = 'rgba(42,90,140,0.6)';
+  ctx.font = '10px Segoe UI';
+  ctx.textAlign = 'left';
+  ctx.fillText('0', ox + 4, oy - 4);
+}
+
+// ═══════════════════════════════════════════════
+//  TIMELINE INTERACTION
+// ═══════════════════════════════════════════════
+tlCanvasEl.addEventListener('click', e => {
+  if (!S.bars.length) return;
+  const rect = tlCanvasEl.getBoundingClientRect();
+  // Account for scroll offset inside the wrapper
+  const mx = e.clientX - rect.left;
+
+  for (let i = 0; i < S.bars.length; i++) {
+    const bx = tlTimeToX(S.bars[i].time);
+    const bw = tlBarWidth(i);
+    if (mx >= bx && mx <= bx + bw &&
+        e.clientY - rect.top >= TL_BAR_Y &&
+        e.clientY - rect.top <= TL_BAR_Y + TL_BAR_H) {
+      S.selectedBar = i;
+      S.dragging = null;
+      document.getElementById('info-selected').textContent =
+        `선택된 바: ${i + 1}번 (${S.bars[i].time.toFixed(3)}s, ${S.bars[i].notes.length}개)`;
+      renderAll();
+      return;
+    }
+  }
+});
+
+// Timeline zoom buttons
+document.getElementById('tl-zoom-in').addEventListener('click', () => {
+  S.tlZoom = Math.min(S.tlZoom * 1.5, 10);
+  resizeTimeline();
+  renderTimeline();
+});
+document.getElementById('tl-zoom-out').addEventListener('click', () => {
+  S.tlZoom = Math.max(S.tlZoom / 1.5, 0.2);
+  resizeTimeline();
+  renderTimeline();
+});
+
+// ═══════════════════════════════════════════════
+//  NOTE CANVAS INTERACTION (drag)
+// ═══════════════════════════════════════════════
+noteCanvasEl.addEventListener('mousedown', e => {
+  if (S.selectedBar < 0) return;
+  const bar = S.bars[S.selectedBar];
+  const [mx, my] = mouseOnNote(e);
+
+  for (const note of bar.notes) {
+    const [cx, cy] = worldToCanvas(note.position.x, note.position.y);
+    if (Math.hypot(mx - cx, my - cy) <= NOTE_R + NOTE_HIT_TOLERANCE) {
+      S.dragging = {
+        noteRef: note,
+        startMx: mx,
+        startMy: my,
+        startX: note.position.x,
+        startY: note.position.y,
+      };
+      noteCanvasEl.style.cursor = 'grabbing';
+      break;
+    }
+  }
+});
+
+// Throttle mouse position DOM update via requestAnimationFrame
+let _rafPending = false;
+function scheduleInfoPosUpdate(text) {
+  if (_rafPending) return;
+  _rafPending = true;
+  requestAnimationFrame(() => {
+    document.getElementById('info-pos').textContent = text;
+    _rafPending = false;
+  });
+}
+
+noteCanvasEl.addEventListener('mousemove', e => {
+  const [mx, my] = mouseOnNote(e);
+  const [wx, wy] = canvasToWorld(mx, my);
+  scheduleInfoPosUpdate(`마우스: (${wx.toFixed(2)}, ${wy.toFixed(2)})`);
+
+  if (!S.dragging) {
+    // Update cursor
+    if (S.selectedBar >= 0) {
+      const bar = S.bars[S.selectedBar];
+      const hover = bar.notes.some(note => {
+        const [cx, cy] = worldToCanvas(note.position.x, note.position.y);
+        return Math.hypot(mx - cx, my - cy) <= NOTE_R + NOTE_HIT_TOLERANCE;
+      });
+      noteCanvasEl.style.cursor = hover ? 'grab' : 'crosshair';
+    }
+    return;
+  }
+
+  // Dragging: compute world delta
+  const dxPx = mx - S.dragging.startMx;
+  const dyPx = my - S.dragging.startMy;
+  const W = noteCanvasEl.width;
+  const H = noteCanvasEl.height;
+  const worldSpanX = WORLD.xMax - WORLD.xMin;
+  const worldSpanY = WORLD.yMax - WORLD.yMin;
+  const dwx = (dxPx / W) * worldSpanX;
+  const dwy = -(dyPx / H) * worldSpanY; // flip Y
+
+  let newX = S.dragging.startX + dwx;
+  let newY = S.dragging.startY + dwy;
+
+  // Clamp to world
+  newX = Math.max(WORLD.xMin, Math.min(WORLD.xMax, newX));
+  newY = Math.max(WORLD.yMin, Math.min(WORLD.yMax, newY));
+
+  // Optional snap to 0.5
+  if (S.snapEnabled) {
+    newX = Math.round(newX * 2) / 2;
+    newY = Math.round(newY * 2) / 2;
+  }
+
+  S.dragging.noteRef.position.x = newX;
+  S.dragging.noteRef.position.y = newY;
+
+  document.getElementById('status-drag').textContent =
+    `드래그 중 → (${newX.toFixed(2)}, ${newY.toFixed(2)})`;
+
+  renderNoteCanvas();
+});
+
+noteCanvasEl.addEventListener('mouseup', () => endDrag());
+noteCanvasEl.addEventListener('mouseleave', () => {
+  if (S.dragging) endDrag();
+  document.getElementById('info-pos').textContent = '마우스: —';
+});
+
+function endDrag() {
+  if (!S.dragging) return;
+  const note = S.dragging.noteRef;
+  document.getElementById('status-drag').textContent =
+    `저장됨 ✓ → (${note.position.x.toFixed(2)}, ${note.position.y.toFixed(2)})`;
+  S.dragging = null;
+  noteCanvasEl.style.cursor = 'crosshair';
+  renderNoteCanvas();
+}
+
+function mouseOnNote(e) {
+  const rect = noteCanvasEl.getBoundingClientRect();
+  return [e.clientX - rect.left, e.clientY - rect.top];
+}
+
+// ═══════════════════════════════════════════════
+//  SNAP TOGGLE
+// ═══════════════════════════════════════════════
+document.getElementById('snap-btn').addEventListener('click', function () {
+  S.snapEnabled = !S.snapEnabled;
+  this.textContent = S.snapEnabled ? '스냅 ✓' : '스냅 ✗';
+});
+
+// ═══════════════════════════════════════════════
+//  EXPORT
+// ═══════════════════════════════════════════════
+document.getElementById('export-btn').addEventListener('click', () => {
+  if (!S.rawNotes) return;
+  const payload = JSON.stringify({ notes: S.rawNotes }, null, 4);
+  const blob = new Blob([payload], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'notes_edited.json';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  document.getElementById('status-msg').textContent = '✅ JSON 저장 완료!';
+});
+
+// ═══════════════════════════════════════════════
+//  RESIZE & INIT
+// ═══════════════════════════════════════════════
+function resizeTimeline() {
+  const totalW = tlTotalWidth();
+  tlCanvasEl.width  = totalW;
+  tlCanvasEl.height = tlWrapper.clientHeight;
+}
+
+function resizeAll() {
+  noteCanvasEl.width  = noteWrapper.clientWidth;
+  noteCanvasEl.height = noteWrapper.clientHeight;
+  resizeTimeline();
+  renderAll();
+}
+
+function renderAll() {
+  renderNoteCanvas();
+  renderTimeline();
+}
+
+window.addEventListener('resize', resizeAll);
+resizeAll();
+
+// ═══════════════════════════════════════════════
+//  UTILITY: rounded rect helpers
+// ═══════════════════════════════════════════════
+function roundRectPath(ctx, x, y, w, h, r) {
+  r = Math.min(r, w / 2, h / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.arcTo(x + w, y, x + w, y + r, r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.arcTo(x + w, y + h, x + w - r, y + h, r);
+  ctx.lineTo(x + r, y + h);
+  ctx.arcTo(x, y + h, x, y + h - r, r);
+  ctx.lineTo(x, y + r);
+  ctx.arcTo(x, y, x + r, y, r);
+  ctx.closePath();
+}
+function fillRoundRect(ctx, x, y, w, h, r) {
+  roundRectPath(ctx, x, y, w, h, r);
+  ctx.fill();
+}
+function strokeRoundRect(ctx, x, y, w, h, r) {
+  roundRectPath(ctx, x, y, w, h, r);
+  ctx.stroke();
+}
+</script>
+</body>
+</html>
