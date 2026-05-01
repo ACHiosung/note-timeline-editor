@@ -209,6 +209,7 @@ const S = {
   copiedBarNotes: null,         // [{count, notes:[{type,x,y}]}] clipboard
   pasteOverlayBars: new Map(),  // barIndex → 'ok'|'error' after Ctrl+V
   tlDragSelect: null,           // {startX, currentX} during rubber-band drag
+  undoStack: [],                // [{id, x, y}[]] position snapshots
 };
 
 // ═══════════════════════════════════════════════
@@ -303,6 +304,7 @@ function buildData() {
   S.copiedBarNotes    = null;
   S.pasteOverlayBars  = new Map();
   S.tlDragSelect      = null;
+  S.undoStack         = [];
   document.getElementById('info-notes').textContent = `노트: ${S.rawNotes.length}`;
   document.getElementById('info-bars').textContent  =
     `바: ${S.normalBars.length} / 체인: ${S.dragChains.length}`;
@@ -989,6 +991,17 @@ noteCanvasEl.addEventListener('mouseleave', () => {
 function endDrag() {
   if (!S.dragging) return;
   const note = S.dragging.noteRef;
+  // Only push undo if position actually changed
+  if (note.position.x !== S.dragging.startX || note.position.y !== S.dragging.startY) {
+    // Temporarily restore original to capture pre-change state, then reapply
+    const finalX = note.position.x;
+    const finalY = note.position.y;
+    note.position.x = S.dragging.startX;
+    note.position.y = S.dragging.startY;
+    pushUndo();
+    note.position.x = finalX;
+    note.position.y = finalY;
+  }
   document.getElementById('status-drag').textContent =
     `저장됨 ✓ → (${note.position.x.toFixed(2)}, ${note.position.y.toFixed(2)})`;
   S.dragging = null;
@@ -999,6 +1012,32 @@ function endDrag() {
 function mouseOnNote(e) {
   const rect = noteCanvasEl.getBoundingClientRect();
   return [e.clientX - rect.left, e.clientY - rect.top];
+}
+
+// ═══════════════════════════════════════════════
+//  UNDO
+// ═══════════════════════════════════════════════
+const UNDO_MAX = 50;
+
+function pushUndo() {
+  if (!S.rawNotes) return;
+  const snap = S.rawNotes.map(n => ({ id: n.id, x: n.position.x, y: n.position.y }));
+  S.undoStack.push(snap);
+  if (S.undoStack.length > UNDO_MAX) S.undoStack.shift();
+}
+
+function applyUndo() {
+  if (!S.undoStack.length) return;
+  const snap = S.undoStack.pop();
+  const byId = new Map(snap.map(s => [s.id, s]));
+  S.rawNotes.forEach(n => {
+    const s = byId.get(n.id);
+    if (s) { n.position.x = s.x; n.position.y = s.y; }
+  });
+  S.pasteOverlayBars = new Map();
+  document.getElementById('status-msg').textContent =
+    `↩ 실행 취소 (남은 스택: ${S.undoStack.length})`;
+  renderAll();
 }
 
 // ═══════════════════════════════════════════════
@@ -1154,10 +1193,17 @@ document.addEventListener('mousedown', () => {
   }
 });
 
-// ── keydown: Ctrl+C / Ctrl+V / A/D navigation + Arrow key note adjustment ──
+// ── keydown: Ctrl+Z / Ctrl+C / Ctrl+V / A/D navigation + Arrow key note adjustment ──
 document.addEventListener('keydown', e => {
   const tag = e.target && e.target.tagName;
   if (tag === 'INPUT' || tag === 'TEXTAREA' || e.target.isContentEditable) return;
+
+  // ── Ctrl+Z: undo ────────────────────────────────────────────────
+  if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
+    e.preventDefault();
+    applyUndo();
+    return;
+  }
 
   // ── Ctrl+C: copy selected normal bars ──────────────────────────
   if ((e.ctrlKey || e.metaKey) && e.key === 'c') {
@@ -1187,6 +1233,7 @@ document.addEventListener('keydown', e => {
     if (startIdx < 0) return;
     e.preventDefault();
 
+    pushUndo();
     S.pasteOverlayBars = new Map();
     S.copiedBarNotes.forEach((copied, offset) => {
       const targetIdx = startIdx + offset;
@@ -1229,6 +1276,7 @@ document.addEventListener('keydown', e => {
   const notes = getSelectedBarNotes();
   if (notes && S.selectedNoteIdx >= 0 && S.selectedNoteIdx < notes.length) {
     e.preventDefault();
+    pushUndo();
     const step = S.snapEnabled ? 0.5 : 0.1;
     const note = notes[S.selectedNoteIdx];
     if (e.key === 'ArrowLeft')  note.position.x = Math.max(WORLD.xMin, note.position.x - step);
