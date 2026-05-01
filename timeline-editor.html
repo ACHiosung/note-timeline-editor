@@ -988,7 +988,7 @@ function updateInfoSelected() {
   }
 }
 
-// Shared Shift navigation logic (used by both keydown and keyup handlers)
+// Shared A/D navigation logic
 function handleShiftNav(forward) {
   if (S.selectedNormalBar >= 0 && S.normalBars.length > 0) {
     const bar = S.normalBars[S.selectedNormalBar];
@@ -1054,22 +1054,18 @@ function handleShiftNav(forward) {
   }
 }
 
-// ── keyup: Shift navigation (keyup avoids Korean IME capturing right-Shift on keydown) ──
-document.addEventListener('keyup', e => {
-  const tag = e.target && e.target.tagName;
-  if (tag === 'INPUT' || tag === 'TEXTAREA' || e.target.isContentEditable) return;
-  if (e.key !== 'Shift') return;
-  const forward  = e.code === 'ShiftRight' || e.location === KeyboardEvent.DOM_KEY_LOCATION_RIGHT;
-  const backward = e.code === 'ShiftLeft'  || e.location === KeyboardEvent.DOM_KEY_LOCATION_LEFT;
-  if (!forward && !backward) return;
-  e.preventDefault();
-  handleShiftNav(forward);
-});
-
-// ── keydown: Arrow key note adjustment ──────────────────────────────
+// ── keydown: A/D navigation + Arrow key note adjustment ─────────────
 document.addEventListener('keydown', e => {
   const tag = e.target && e.target.tagName;
   if (tag === 'INPUT' || tag === 'TEXTAREA' || e.target.isContentEditable) return;
+
+  // ── A / D: navigate bars / cycle through notes ──────────────────
+  if (e.key === 'a' || e.key === 'A' || e.key === 'd' || e.key === 'D') {
+    const forward = e.key === 'd' || e.key === 'D';
+    e.preventDefault();
+    handleShiftNav(forward);
+    return;
+  }
 
   const isArrow = e.key === 'ArrowLeft' || e.key === 'ArrowRight'
                || e.key === 'ArrowUp'   || e.key === 'ArrowDown';
