@@ -147,6 +147,7 @@
   <span class="tag" id="music-status">음악 없음</span>
   <button class="btn btn-success" id="play-btn" disabled title="재생 / 정지">▶ 재생</button>
   <button class="btn btn-secondary" id="reset-btn" disabled title="처음으로 되감기">⏮</button>
+  <button class="btn btn-secondary" id="tap-sound-btn" title="노트 타이밍에 효과음 재생">🥁 탭음 ✗</button>
   <span class="tag tag-hl" id="play-time">—</span>
 </div>
 
@@ -1424,6 +1425,96 @@ let playRafId        = null;
 let currentPlayTime  = 0;      // current playback position in seconds
 
 // ═══════════════════════════════════════════════
+//  TAP SOUND
+// ═══════════════════════════════════════════════
+// Paths relative to timeline-editor.html
+const SFX_FILES = {
+  normal: 'sfx/tap.ogg',       // type 0, type 2 (drag)
+  long:   'sfx/tap_long.ogg',  // type 1 (long note start)
+  end:    'sfx/tap_end.ogg',   // type -1 (long note end)
+};
+
+let tapEnabled         = false;
+const tapBuffers       = { normal: null, long: null, end: null };
+let   tapScheduled     = new Set();   // BufferSourceNode instances waiting to fire
+
+// Load all sfx files silently at startup
+(async () => {
+  if (!window.AudioContext && !window.webkitAudioContext) return;
+  const ctx = new (window.AudioContext || window.webkitAudioContext)();
+  // We'll re-use audioCtxPb later; keep a separate short-lived ctx just for
+  // decoding so we don't depend on audioCtxPb being initialised yet.
+  for (const [key, path] of Object.entries(SFX_FILES)) {
+    try {
+      const res = await fetch(path);
+      if (!res.ok) continue;
+      const buf = await res.arrayBuffer();
+      tapBuffers[key] = await ctx.decodeAudioData(buf);
+    } catch (_) { /* file missing – silently skip */ }
+  }
+  await ctx.close();
+})();
+
+// Toggle button
+document.getElementById('tap-sound-btn').addEventListener('click', function () {
+  tapEnabled = !tapEnabled;
+  this.textContent = tapEnabled ? '🥁 탭음 ✓' : '🥁 탭음 ✗';
+  this.classList.toggle('btn-success',   tapEnabled);
+  this.classList.toggle('btn-secondary', !tapEnabled);
+});
+
+// Schedule tap sounds for all notes that haven't passed yet.
+// Called inside startPlayback() after playStartAudioT is set.
+function scheduleTapSounds() {
+  if (!tapEnabled || !S.rawNotes || !audioCtxPb) return;
+
+  // Collect unique times and their note types
+  // (multiple notes at the same time → one tap, but use the "loudest" type priority)
+  const TYPE_PRIORITY = { 1: 0, [-1]: 1, 0: 2, 2: 3 }; // lower = higher priority
+  const timeMap = new Map(); // rounded-ms-key → { time, type }
+
+  S.rawNotes.forEach(note => {
+    if (note.time < playbackOffset) return;  // already past
+    const key = note.time.toFixed(3);
+    if (!timeMap.has(key)) {
+      timeMap.set(key, { time: note.time, type: note.type });
+    } else {
+      const cur = timeMap.get(key);
+      const curP = TYPE_PRIORITY[cur.type] ?? 99;
+      const newP = TYPE_PRIORITY[note.type] ?? 99;
+      if (newP < curP) timeMap.get(key).type = note.type;
+    }
+  });
+
+  timeMap.forEach(({ time, type }) => {
+    const buf = (type === 1)  ? tapBuffers.long
+              : (type === -1) ? tapBuffers.end
+              :                 tapBuffers.normal;
+    if (!buf) return;
+
+    const absTime = playStartAudioT + (time - playbackOffset);
+    if (absTime < audioCtxPb.currentTime) return;  // already past (float rounding)
+
+    const src = audioCtxPb.createBufferSource();
+    src.buffer = buf;
+    src.connect(audioCtxPb.destination);
+    src.start(absTime);
+    // Auto-cleanup after fire so we don't leak references
+    src.onended = () => { tapScheduled.delete(src); };
+    tapScheduled.add(src);
+  });
+}
+
+// Stop all pending tap sounds (called on stopPlayback)
+function cancelTapSounds() {
+  tapScheduled.forEach(src => {
+    try { src.stop(); } catch (_) { /* already fired */ }
+    src.disconnect();
+  });
+  tapScheduled = new Set();
+}
+
+// ═══════════════════════════════════════════════
 //  MUSIC LOAD
 // ═══════════════════════════════════════════════
 document.getElementById('music-upload').addEventListener('change', e => {
@@ -1482,6 +1573,8 @@ function startPlayback() {
   audioSourceNode.start(0, playbackOffset);
   isPlaying = true;
 
+  scheduleTapSounds();
+
   const btn = document.getElementById('play-btn');
   btn.textContent = '■ 정지';
   btn.classList.remove('btn-success');
@@ -1492,6 +1585,8 @@ function startPlayback() {
 
 function stopPlayback(resetToStart) {
   isPlaying = false;   // set before stop() so onended won't recurse
+
+  cancelTapSounds();
 
   if (audioSourceNode) {
     try { audioSourceNode.stop(); } catch (_) { /* stop() throws if source never started */ }
