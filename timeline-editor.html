@@ -149,7 +149,7 @@
   <button class="btn btn-success" id="play-btn" disabled title="재생 / 정지">▶ 재생</button>
   <button class="btn btn-secondary" id="reset-btn" disabled title="처음으로 되감기">⏮</button>
   <button class="btn btn-secondary" id="tap-sound-btn" title="노트 타이밍에 효과음 재생">🥁 탭음 ✗</button>
-  <span class="tag tag-hl" id="play-time" title="휠로 재생 시간 조절 (0.1s 단위)&#10;캔버스·타임라인에서 Ctrl+휠도 가능">—</span>
+  <span class="tag tag-hl" id="play-time" title="휠로 재생 시간 조절 (0.1s 단위)&#10;어디서든 Shift+휠도 가능">—</span>
 </div>
 
 <div id="main-area">
@@ -1315,6 +1315,20 @@ document.addEventListener('wheel', e => {
   const tag = e.target && e.target.tagName;
   if (tag === 'INPUT' || tag === 'TEXTAREA' || (e.target && e.target.isContentEditable)) return;
 
+  // Wheel on the play-time badge → seek playback position (±0.1 s per notch)
+  if (e.target && e.target.id === 'play-time') {
+    e.preventDefault();
+    seekByDelta((e.deltaY > 0 ? 1 : -1) * WHEEL_STEP);
+    return;
+  }
+
+  // Shift+Wheel anywhere → seek playback position
+  if (e.shiftKey) {
+    e.preventDefault();
+    seekByDelta((e.deltaY > 0 ? 1 : -1) * WHEEL_STEP);
+    return;
+  }
+
   e.preventDefault();
 
   if (e.ctrlKey || e.metaKey) {
@@ -1476,9 +1490,8 @@ document.getElementById('tap-sound-btn').addEventListener('click', function () {
 
 // Schedule tap sounds for all notes that haven't passed yet.
 // Called inside startPlayback() after playStartAudioT is set.
-async function scheduleTapSounds() {
+function scheduleTapSounds() {
   if (!tapEnabled || !S.rawNotes || !audioCtxPb) return;
-  await ensureTapBuffersDecoded();
 
   // Collect unique times and their note types
   // (multiple notes at the same time → one tap, but use the "loudest" type priority)
@@ -1570,9 +1583,13 @@ document.getElementById('reset-btn').addEventListener('click', () => {
   stopPlayback(true);
 });
 
-function startPlayback() {
+async function startPlayback() {
   if (!audioCtxPb) audioCtxPb = new AudioContext();
-  if (audioCtxPb.state === 'suspended') audioCtxPb.resume();
+  if (audioCtxPb.state === 'suspended') await audioCtxPb.resume();
+
+  // Decode tap-sound buffers BEFORE we capture playStartAudioT, so the
+  // async work doesn't push early notes past their scheduled absTime.
+  await ensureTapBuffersDecoded();
 
   audioSourceNode = audioCtxPb.createBufferSource();
   audioSourceNode.buffer = audioBuffer;
@@ -1651,20 +1668,10 @@ function seekByDelta(deltaSec) {
 }
 
 document.getElementById('play-time').addEventListener('wheel', e => {
-  e.preventDefault();
-  const notches = e.deltaY > 0 ? 1 : -1;
-  seekByDelta(notches * WHEEL_STEP);
+  // Handled by the document-level wheel listener above; nothing extra needed.
 }, { passive: false });
 
-// Ctrl+Wheel on note canvas or timeline area seeks (normal wheel still zooms/scrolls)
-[document.getElementById('note-canvas'), document.getElementById('tl-scroll')].forEach(el => {
-  el.addEventListener('wheel', e => {
-    if (!e.ctrlKey) return;
-    e.preventDefault();
-    const notches = e.deltaY > 0 ? 1 : -1;
-    seekByDelta(notches * WHEEL_STEP);
-  }, { passive: false });
-});
+// Shift+Wheel anywhere seeks (handled centrally in document wheel listener above)
 
 function playLoop() {
   if (!isPlaying) return;
