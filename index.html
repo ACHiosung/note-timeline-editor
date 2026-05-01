@@ -1,12 +1,177 @@
 <!DOCTYPE html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Note Timeline Editor</title>
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.jsx"></script>
-  </body>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BMS Style Note Editor</title>
+    <link rel="stylesheet" href="css/style.css">
+    <script src="https://unpkg.com/@tonejs/midi"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Top Toolbar -->
+        <header class="toolbar">
+            <div class="toolbar-section">
+                <h1 class="logo">Note Editor</h1>
+            </div>
+
+            <!-- MIDI 로드 후 자동 인식된 정보 표시 -->
+            <div class="toolbar-section info-bar" id="midi-info-bar">
+                <span class="info-tag" id="info-bpm">BPM: -</span>
+                <span class="info-tag" id="info-ts">박자: -</span>
+                <span class="info-tag" id="info-measures">마디: -</span>
+            </div>
+
+            <!-- 줌 컨트롤 -->
+            <div class="toolbar-section zoom-controls">
+                <button class="btn small-btn" id="zoom-out-btn" title="축소">−</button>
+                <span class="info-tag" id="zoom-level">100%</span>
+                <button class="btn small-btn" id="zoom-in-btn" title="확대">+</button>
+                <button class="btn small-btn" id="zoom-fit-btn" title="전체 보기">전체</button>
+            </div>
+
+            <div class="toolbar-section actions">
+                <select id="midi-target-lane" class="record-select" title="MIDI 노트를 쓸 일반 라인 선택">
+                    <option value="normal_1">일반 1</option>
+                    <option value="normal_2">일반 2</option>
+                    <option value="normal_3">일반 3</option>
+                </select>
+                <label class="btn primary-btn">
+                    MIDI 로드
+                    <input type="file" id="midi-upload" accept=".mid,.midi">
+                </label>
+                <span id="midi-bpm-lock-notice" class="info-tag midi-bpm-lock hidden">⚠ 이미 MIDI 파일을 불러왔으니 BPM 변경이 불가합니다</span>
+                <label class="btn" id="music-upload-label" title="재생할 음악 파일 선택 (MP3, OGG, WAV 등)">
+                    🎵 음악 로드
+                    <input type="file" id="music-upload" accept="audio/*">
+                </label>
+                <span id="music-filename" class="info-tag" style="display:none;"></span>
+                <button id="play-btn" class="btn primary-btn">▶ 재생</button>
+                <button id="export-txt-btn" class="btn">TXT 내보내기</button>
+                <button id="midi-record-init-btn" class="btn">🎹 MIDI 녹음</button>
+            </div>
+        </header>
+
+        <!-- MIDI 녹음 패널 (기본 숨김) -->
+        <div id="record-panel" class="record-panel hidden">
+            <div class="record-panel-inner">
+                <div class="record-row">
+                    <label class="record-label">입력 장치</label>
+                    <select id="record-device-select" class="record-select">
+                        <option value="">-- 장치 선택 --</option>
+                    </select>
+                    <button id="record-refresh-btn" class="btn small-btn" title="장치 목록 새로고침">↺</button>
+                </div>
+                <div class="record-row">
+                    <label class="record-label">레인</label>
+                    <select id="record-lane-select" class="record-select">
+                        <option value="normal_1">일반 1</option>
+                        <option value="normal_2">일반 2</option>
+                        <option value="normal_3">일반 3</option>
+                        <option value="long_1">롱 1</option>
+                        <option value="long_2">롱 2</option>
+                        <option value="long_3">롱 3</option>
+                        <option value="drag_1">드래그 1</option>
+                        <option value="drag_2">드래그 2</option>
+                        <option value="drag_3">드래그 3</option>
+                    </select>
+                    <label class="record-label" style="margin-left:8px;">BPM</label>
+                    <input id="record-bpm-input" type="number" class="record-number-input" value="120" min="10" max="999" step="0.001">
+                </div>
+                <div class="record-row">
+                    <button id="record-start-btn" class="btn primary-btn">● 녹음 시작</button>
+                    <button id="record-stop-btn" class="btn" disabled>■ 녹음 종료</button>
+                    <button id="record-bpmchange-btn" class="btn" disabled title="현재 시점에 BPM 변경 마커 삽입">♩ BPM 변경</button>
+                    <input id="record-bpmchange-input" type="number" class="record-number-input" value="120" min="10" max="999" step="0.001" disabled>
+                    <span id="record-status" class="record-status">대기 중</span>
+                    <span id="record-clock-bpm" class="record-clock-bpm hidden"></span>
+                </div>
+            </div>
+        </div>
+
+        <div class="main-content">
+            <!-- Left Sidebar -->
+            <aside class="sidebar">
+                <div class="tool-group">
+                    <h3>그리드</h3>
+                    <div class="grid-input-row">
+                        <input type="number" id="grid-input" class="grid-number-input" value="16" min="1" max="192" title="추가할 분할 수 입력 (토글)">
+                        <span class="grid-unit">분할</span>
+                    </div>
+                    <div class="grid-presets">
+                        <button class="grid-preset-btn" data-grid="4">4</button>
+                        <button class="grid-preset-btn" data-grid="8">8</button>
+                        <button class="grid-preset-btn" data-grid="12">12</button>
+                        <button class="grid-preset-btn active" data-grid="16">16</button>
+                        <button class="grid-preset-btn" data-grid="24">24</button>
+                        <button class="grid-preset-btn" data-grid="32">32</button>
+                        <button class="grid-preset-btn" data-grid="48">48</button>
+                        <button class="grid-preset-btn" data-grid="96">96</button>
+                    </div>
+                </div>
+
+                <div class="tool-group">
+                    <h3>모드</h3>
+                    <div class="editor-mode-selector" id="editor-mode-group">
+                        <button class="editor-mode-btn active" data-editor-mode="note" title="노트 모드 — 노트 생성/삭제">✏️ 노트</button>
+                        <button class="editor-mode-btn" data-editor-mode="edit" title="편집 모드 — 노트 위치 이동">🖱️ 편집</button>
+                    </div>
+                    <div id="note-mode-options" class="tool-group" style="margin-top:4px;">
+                        <button class="tool-btn active" data-mode="write">
+                            <span class="color-dot normal-dot"></span> 노트 쓰기
+                        </button>
+                        <button class="tool-btn" id="delete-mode-btn" data-mode="delete">
+                            <span class="color-dot delete-dot">X</span> 지우개
+                        </button>
+                    </div>
+                </div>
+
+                <p class="help-text" id="help-text-note">
+                    <strong>노트 모드:</strong><br/>
+                    - 휠: 상하 스크롤<br/>
+                    - Ctrl+휠: 줌 인/아웃<br/>
+                    - 좌클릭 (Ln): 일반 노트<br/>
+                    - 드래그 (Ln): 롱노트 구간<br/>
+                    - 클릭/드래그 (Drg): 드래그 노트<br/>
+                    <strong>재생 중:</strong><br/>
+                    - 휠: 마디 이동
+                </p>
+                <p class="help-text" id="help-text-edit" style="display:none;">
+                    <strong>편집 모드:</strong><br/>
+                    - 노트 클릭+드래그:<br/>
+                    &nbsp;&nbsp;↕ 위아래 → 타이밍 이동<br/>
+                    &nbsp;&nbsp;↔ 좌우 → 레인 이동<br/>
+                    - 레인 이동 시 타이밍 유지<br/>
+                    - 롱노트도 이동 가능
+                </p>
+            </aside>
+
+            <!-- Center Canvas Area -->
+            <main class="editor-area">
+                <div class="canvas-container">
+                    <canvas id="grid-canvas"></canvas>
+                </div>
+            </main>
+
+            <!-- Right Sidebar -->
+            <aside class="right-panel">
+                <h3>정보</h3>
+                <div class="info-group">
+                    <p>현재 마우스 위치:</p>
+                    <p id="mouse-info" class="code-font">-</p>
+                </div>
+            </aside>
+        </div>
+    </div>
+
+    <script src="js/note-data.js"></script>
+    <script src="js/midi-parser.js"></script>
+    <script src="js/midi-input-recorder.js"></script>
+    <script src="js/grid-renderer.js"></script>
+    <script src="js/editor.js"></script>
+    <script src="js/player.js"></script>
+    <script src="js/exporter.js"></script>
+    <script src="js/app.js"></script>
+</body>
 </html>
