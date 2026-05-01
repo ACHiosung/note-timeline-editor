@@ -1291,11 +1291,29 @@ document.addEventListener('keydown', e => {
 });
 
 // ═══════════════════════════════════════════════
-//  TIMELINE HORIZONTAL SCROLL VIA MOUSE WHEEL
+//  TIMELINE HORIZONTAL SCROLL & ZOOM VIA MOUSE WHEEL
 // ═══════════════════════════════════════════════
-document.getElementById('timeline-area').addEventListener('wheel', e => {
+document.addEventListener('wheel', e => {
+  // Ignore events that originate inside text inputs
+  const tag = e.target && e.target.tagName;
+  if (tag === 'INPUT' || tag === 'TEXTAREA' || (e.target && e.target.isContentEditable)) return;
+
   e.preventDefault();
-  tlScroll.scrollLeft += e.deltaY !== 0 ? e.deltaY : e.deltaX;
+
+  if (e.ctrlKey || e.metaKey) {
+    // Ctrl+scroll → zoom the timeline
+    if (e.deltaY < 0) {
+      S.tlZoom = Math.min(S.tlZoom * 1.1, 12);
+    } else if (e.deltaY > 0) {
+      S.tlZoom = Math.max(S.tlZoom / 1.1, 0.2);
+    }
+    resizeTimelines();
+    renderNormalTimeline();
+    renderDragTimeline();
+  } else {
+    // Regular scroll → scroll the timeline horizontally
+    tlScroll.scrollLeft += e.deltaY !== 0 ? e.deltaY : e.deltaX;
+  }
 }, { passive: false });
 
 // ═══════════════════════════════════════════════
