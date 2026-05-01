@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Canvas Temp Text</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      body {
+        background: #1a1a2e;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        min-height: 100vh;
+        font-family: sans-serif;
+        gap: 16px;
+      }
+      canvas {
+        background: #16213e;
+        border: 1px solid #0f3460;
+        border-radius: 8px;
+      }
+      .controls {
+        display: flex;
+        gap: 8px;
+      }
+      input[type="text"] {
+        padding: 8px 12px;
+        border-radius: 6px;
+        border: 1px solid #0f3460;
+        background: #16213e;
+        color: #eee;
+        font-size: 14px;
+        width: 260px;
+        outline: none;
+      }
+      button {
+        padding: 8px 16px;
+        border-radius: 6px;
+        border: none;
+        background: #e94560;
+        color: #fff;
+        font-size: 14px;
+        cursor: pointer;
+      }
+      button:hover {
+        background: #c73652;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="canvas" width="640" height="360"></canvas>
+    <div class="controls">
+      <input type="text" id="textInput" placeholder="표시할 텍스트 입력..." value="Hello, Canvas!" />
+      <button id="showBtn">텍스트 표시</button>
+    </div>
+
+    <script>
+      const canvas = document.getElementById("canvas");
+      const ctx = canvas.getContext("2d");
+      const input = document.getElementById("textInput");
+      const btn = document.getElementById("showBtn");
+
+      let fadeTimer = null;
+      let animFrame = null;
+      let opacity = 0;
+      let phase = "idle"; // "fadein" | "hold" | "fadeout" | "idle"
+      let currentText = "";
+
+      const FADE_DURATION = 400;   // ms
+      const HOLD_DURATION = 2000;  // ms visible at full opacity
+
+      function clearCanvas() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+      }
+
+      function drawText(text, alpha) {
+        clearCanvas();
+        ctx.save();
+        ctx.globalAlpha = Math.max(0, Math.min(1, alpha));
+        ctx.font = "bold 36px sans-serif";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillStyle = "#e94560";
+        ctx.shadowColor = "#e94560";
+        ctx.shadowBlur = 18;
+        ctx.fillText(text, canvas.width / 2, canvas.height / 2);
+        ctx.restore();
+      }
+
+      function animate(targetOpacity, duration, onDone) {
+        const start = performance.now();
+        const startOpacity = opacity;
+
+        function tick(now) {
+          const t = Math.min((now - start) / duration, 1);
+          opacity = startOpacity + (targetOpacity - startOpacity) * t;
+          drawText(currentText, opacity);
+          if (t < 1) {
+            animFrame = requestAnimationFrame(tick);
+          } else {
+            opacity = targetOpacity;
+            onDone && onDone();
+          }
+        }
+
+        if (animFrame) cancelAnimationFrame(animFrame);
+        animFrame = requestAnimationFrame(tick);
+      }
+
+      function showTempText(text) {
+        if (fadeTimer) clearTimeout(fadeTimer);
+        if (animFrame) cancelAnimationFrame(animFrame);
+
+        currentText = text;
+        phase = "fadein";
+
+        animate(1, FADE_DURATION, () => {
+          phase = "hold";
+          fadeTimer = setTimeout(() => {
+            phase = "fadeout";
+            animate(0, FADE_DURATION, () => {
+              phase = "idle";
+              clearCanvas();
+            });
+          }, HOLD_DURATION);
+        });
+      }
+
+      btn.addEventListener("click", () => {
+        const text = input.value.trim();
+        if (text) showTempText(text);
+      });
+
+      input.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") {
+          const text = input.value.trim();
+          if (text) showTempText(text);
+        }
+      });
+    </script>
+  </body>
+</html>
