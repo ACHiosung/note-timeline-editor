@@ -965,6 +965,14 @@ document.addEventListener('keydown', e => {
 });
 
 // ═══════════════════════════════════════════════
+//  TIMELINE HORIZONTAL SCROLL VIA MOUSE WHEEL
+// ═══════════════════════════════════════════════
+document.getElementById('timeline-area').addEventListener('wheel', e => {
+  e.preventDefault();
+  tlScroll.scrollLeft += e.deltaY !== 0 ? e.deltaY : e.deltaX;
+}, { passive: false });
+
+// ═══════════════════════════════════════════════
 //  SNAP TOGGLE
 // ═══════════════════════════════════════════════
 document.getElementById('snap-btn').addEventListener('click', function () {
