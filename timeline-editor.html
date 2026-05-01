@@ -1455,14 +1455,23 @@ const tapRawBuffers    = { normal: null, long: null, end: null };
 const tapBuffers       = { normal: null, long: null, end: null };
 let   tapScheduled     = new Set();   // BufferSourceNode instances waiting to fire
 
-// Fetch sfx files as raw ArrayBuffers silently at startup (no AudioContext needed yet)
+// Load sfx files as raw ArrayBuffers at startup.
+// Uses XHR (status 0 = file:// success, 200 = http:// success).
 (async () => {
   for (const [key, path] of Object.entries(SFX_FILES)) {
-    try {
-      const res = await fetch(path);
-      if (!res.ok) continue;
-      tapRawBuffers[key] = await res.arrayBuffer();
-    } catch (_) { /* file missing – silently skip */ }
+    await new Promise(resolve => {
+      const xhr = new XMLHttpRequest();
+      xhr.open('GET', path, true);
+      xhr.responseType = 'arraybuffer';
+      xhr.onload = function () {
+        if (this.status === 200 || this.status === 0) {
+          tapRawBuffers[key] = this.response;
+        }
+        resolve();
+      };
+      xhr.onerror = resolve;
+      xhr.send();
+    });
   }
 })();
 
