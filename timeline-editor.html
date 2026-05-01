@@ -180,8 +180,11 @@ const WORLD = { xMin: -7, xMax: 7, yMin: -3.5, yMax: 3.5 };
 const NOTE_R = 18;
 const NOTE_HIT_TOLERANCE = 4;
 const TL_PAD = 14;
-const TL_BAR_Y = 7;       // bar top offset within each timeline canvas
-const TL_BAR_H = 30;      // bar height (thin)
+const TL_BAR_Y = 12;      // bar top offset within each timeline canvas
+const TL_BAR_H = 28;      // bar height
+const TL_BAR_W = 3;       // thin tick bar width (px)
+const TL_HIT_W = 14;      // click hit area width (±7 px around center)
+const TL_DOT_R = 4;       // top marker dot radius
 const TL_PX_PER_SEC = 60;
 const TIME_GROUP_PRECISION = 6;
 // Bar lightness constants
@@ -347,23 +350,9 @@ function tlTotalWidth() {
 
 function tlTimeToX(t) { return TL_PAD + t * tlPxPerSec(); }
 
-function normalBarWidth(i) {
-  const bars = S.normalBars;
-  if (bars.length === 1) return Math.max(30, tlScroll.clientWidth - TL_PAD * 2);
-  const x0 = tlTimeToX(bars[i].time);
-  if (i < bars.length - 1) {
-    const x1 = tlTimeToX(bars[i + 1].time);
-    return Math.max(7, x1 - x0 - 2);
-  }
-  return 16;
-}
+function normalBarWidth(_i) { return TL_BAR_W; } // kept for reference only
 
-function dragChainBarWidth(i) {
-  const chain = S.dragChains[i];
-  const lastT = chain.notes[chain.notes.length - 1].time;
-  // Width = full chain time span in px, minimum 20px
-  return Math.max(20, (lastT - chain.startTime) * tlPxPerSec() + 6);
-}
+function dragChainBarWidth(_i) { return TL_BAR_W; } // kept for reference only
 
 // ═══════════════════════════════════════════════
 //  TIMELINE RENDER HELPERS
@@ -426,33 +415,32 @@ function renderNormalTimeline() {
   drawTimeAxis(ctx, W, S.normalBars, S.dragChains);
 
   S.normalBars.forEach((bar, i) => {
-    const bx = tlTimeToX(bar.time);
-    const bw = normalBarWidth(i);
+    const cx = tlTimeToX(bar.time);   // center x
+    const bx = cx - TL_BAR_W / 2;
     const sel = i === S.selectedNormalBar;
+    const color = sel ? '#64b5f6' : `hsl(210,70%,${BAR_BASE_L + Math.min(bar.notes.length * BAR_L_PER_NOTE, BAR_MAX_L_BONUS)}%)`;
 
-    ctx.fillStyle = sel
-      ? '#1565c0'
-      : `hsl(210,60%,${BAR_BASE_L + Math.min(bar.notes.length * BAR_L_PER_NOTE, BAR_MAX_L_BONUS)}%)`;
-    fillRoundRect(ctx, bx, TL_BAR_Y, bw, TL_BAR_H, 3);
+    // Thin vertical tick
+    ctx.fillStyle = color;
+    ctx.fillRect(bx, TL_BAR_Y, TL_BAR_W, TL_BAR_H);
 
-    ctx.strokeStyle = sel ? '#64b5f6' : '#1e3c5e';
-    ctx.lineWidth = sel ? 1.5 : 0.5;
-    strokeRoundRect(ctx, bx, TL_BAR_Y, bw, TL_BAR_H, 3);
-
-    // Type color chips (top strip)
-    const types = [...new Set(bar.notes.map(n => n.type))];
-    types.forEach((t, ti) => {
-      ctx.fillStyle = noteColor(t);
-      ctx.fillRect(bx + 2 + ti * 7, TL_BAR_Y + 2, 5, 3);
-    });
-
-    // Note count
-    if (bw >= 12) {
-      ctx.fillStyle = sel ? '#e3f2fd' : '#5a9ad0';
-      ctx.font = `bold ${Math.min(11, Math.max(8, bw - 4))}px Segoe UI`;
-      ctx.textAlign = 'center';
-      ctx.fillText(bar.notes.length, bx + bw / 2, TL_BAR_Y + TL_BAR_H / 2 + 4);
+    // Small dot cap at top showing first note type color
+    const dotColor = noteColor(bar.notes[0].type);
+    ctx.beginPath();
+    ctx.arc(cx, TL_BAR_Y - 1, TL_DOT_R, 0, Math.PI * 2);
+    ctx.fillStyle = sel ? dotColor : dotColor;
+    ctx.fill();
+    if (sel) {
+      ctx.strokeStyle = '#e3f2fd';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
     }
+
+    // Count label above dot
+    ctx.fillStyle = sel ? '#e3f2fd' : '#4a8ab8';
+    ctx.font = `bold 8px Segoe UI`;
+    ctx.textAlign = 'center';
+    ctx.fillText(bar.notes.length, cx, TL_BAR_Y - TL_DOT_R - 3);
   });
 }
 
@@ -478,34 +466,31 @@ function renderDragTimeline() {
   drawTimeAxis(ctx, W, S.normalBars, S.dragChains);
 
   S.dragChains.forEach((chain, i) => {
-    const bx = tlTimeToX(chain.startTime);
-    const bw = dragChainBarWidth(i);
+    const cx = tlTimeToX(chain.startTime);   // center x at chain start
+    const bx = cx - TL_BAR_W / 2;
     const sel = i === S.selectedDragChain;
+    const color = sel ? '#ffa726' : `hsl(35,70%,${BAR_BASE_L + Math.min(chain.notes.length * BAR_L_PER_NOTE, BAR_MAX_L_BONUS)}%)`;
 
-    // Bar fill
-    ctx.fillStyle = sel ? '#bf6500' : `hsl(35,65%,${BAR_BASE_L + Math.min(chain.notes.length * BAR_L_PER_NOTE, BAR_MAX_L_BONUS)}%)`;
-    fillRoundRect(ctx, bx, TL_BAR_Y, bw, TL_BAR_H, 3);
+    // Thin vertical tick
+    ctx.fillStyle = color;
+    ctx.fillRect(bx, TL_BAR_Y, TL_BAR_W, TL_BAR_H);
 
-    ctx.strokeStyle = sel ? '#ffa726' : '#5a3a0a';
-    ctx.lineWidth = sel ? 1.5 : 0.5;
-    strokeRoundRect(ctx, bx, TL_BAR_Y, bw, TL_BAR_H, 3);
-
-    // Node tick marks inside bar
-    chain.notes.forEach(note => {
-      const nx = tlTimeToX(note.time);
-      if (nx >= bx && nx <= bx + bw) {
-        ctx.fillStyle = sel ? '#ffe0a0' : '#c87000';
-        ctx.fillRect(nx - 1, TL_BAR_Y + 4, 2, TL_BAR_H - 8);
-      }
-    });
-
-    // Chain length label
-    if (bw >= 14) {
-      ctx.fillStyle = sel ? '#fff3e0' : '#a06010';
-      ctx.font = `bold ${Math.min(11, Math.max(8, bw - 4))}px Segoe UI`;
-      ctx.textAlign = 'center';
-      ctx.fillText(chain.notes.length, bx + bw / 2, TL_BAR_Y + TL_BAR_H / 2 + 4);
+    // Small dot cap at top
+    ctx.beginPath();
+    ctx.arc(cx, TL_BAR_Y - 1, TL_DOT_R, 0, Math.PI * 2);
+    ctx.fillStyle = color;
+    ctx.fill();
+    if (sel) {
+      ctx.strokeStyle = '#fff3e0';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
     }
+
+    // Chain length label above dot
+    ctx.fillStyle = sel ? '#fff3e0' : '#8a5010';
+    ctx.font = `bold 8px Segoe UI`;
+    ctx.textAlign = 'center';
+    ctx.fillText(chain.notes.length, cx, TL_BAR_Y - TL_DOT_R - 3);
   });
 }
 
@@ -725,12 +710,11 @@ normalTlEl.addEventListener('click', e => {
   const rect = normalTlEl.getBoundingClientRect();
   const mx = e.clientX - rect.left;
   const my = e.clientY - rect.top;
-  if (my < TL_BAR_Y || my > TL_BAR_Y + TL_BAR_H) return;
+  if (my < TL_BAR_Y - TL_DOT_R - 4 || my > TL_BAR_Y + TL_BAR_H) return;
 
   for (let i = 0; i < S.normalBars.length; i++) {
-    const bx = tlTimeToX(S.normalBars[i].time);
-    const bw = normalBarWidth(i);
-    if (mx >= bx && mx <= bx + bw) {
+    const cx = tlTimeToX(S.normalBars[i].time);
+    if (Math.abs(mx - cx) <= TL_HIT_W / 2) {
       S.selectedNormalBar = i;
       S.selectedDragChain = -1;
       S.dragging = null;
@@ -747,12 +731,11 @@ dragTlEl.addEventListener('click', e => {
   const rect = dragTlEl.getBoundingClientRect();
   const mx = e.clientX - rect.left;
   const my = e.clientY - rect.top;
-  if (my < TL_BAR_Y || my > TL_BAR_Y + TL_BAR_H) return;
+  if (my < TL_BAR_Y - TL_DOT_R - 4 || my > TL_BAR_Y + TL_BAR_H) return;
 
   for (let i = 0; i < S.dragChains.length; i++) {
-    const bx = tlTimeToX(S.dragChains[i].startTime);
-    const bw = dragChainBarWidth(i);
-    if (mx >= bx && mx <= bx + bw) {
+    const cx = tlTimeToX(S.dragChains[i].startTime);
+    if (Math.abs(mx - cx) <= TL_HIT_W / 2) {
       S.selectedDragChain = i;
       S.selectedNormalBar = -1;
       S.dragging = null;
