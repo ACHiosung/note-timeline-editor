@@ -219,6 +219,7 @@ const S = {
   multiSelectedBars: new Set(), // indices of bars in rubber-band selection
   copiedBarNotes: null,         // [{count, notes:[{type,x,y}]}] clipboard
   pasteOverlayBars: new Map(),  // barIndex → 'ok'|'error' after Ctrl+V
+  copiedDragChain: null,        // [{x,y}] node positions clipboard for drag chains
   tlDragSelect: null,           // {startX, currentX} during rubber-band drag
   undoStack: [],                // [{id, x, y}[]] position snapshots
 };
@@ -313,6 +314,7 @@ function buildData() {
   S.selectedNoteIdx   = -1;
   S.multiSelectedBars = new Set();
   S.copiedBarNotes    = null;
+  S.copiedDragChain   = null;
   S.pasteOverlayBars  = new Map();
   S.tlDragSelect      = null;
   S.undoStack         = [];
@@ -1222,8 +1224,16 @@ document.addEventListener('keydown', e => {
     return;
   }
 
-  // ── Ctrl+C: copy selected normal bars ──────────────────────────
+  // ── Ctrl+C: copy selected normal bars or drag chain ────────────
   if ((e.ctrlKey || e.metaKey) && e.key === 'c') {
+    // Drag chain takes priority when selected
+    if (S.selectedDragChain >= 0 && S.dragChains.length > 0) {
+      const chain = S.dragChains[S.selectedDragChain];
+      S.copiedDragChain = chain.notes.map(n => ({ x: n.position.x, y: n.position.y }));
+      document.getElementById('status-msg').textContent =
+        `📋 드래그 체인 복사됨 (노드 ${S.copiedDragChain.length}개)`;
+      return;
+    }
     const selection = S.multiSelectedBars.size > 0
       ? [...S.multiSelectedBars].sort((a, b) => a - b)
       : (S.selectedNormalBar >= 0 ? [S.selectedNormalBar] : []);
@@ -1241,8 +1251,25 @@ document.addEventListener('keydown', e => {
     return;
   }
 
-  // ── Ctrl+V: paste copied bars starting from selected bar ────────
+  // ── Ctrl+V: paste copied bars / drag chain ──────────────────────
   if ((e.ctrlKey || e.metaKey) && e.key === 'v') {
+    // Drag chain paste takes priority when a drag chain is selected
+    if (S.copiedDragChain && S.selectedDragChain >= 0 && S.dragChains.length > 0) {
+      e.preventDefault();
+      const target = S.dragChains[S.selectedDragChain];
+      const copyCount = Math.min(S.copiedDragChain.length, target.notes.length);
+      pushUndo();
+      for (let i = 0; i < copyCount; i++) {
+        target.notes[i].position.x = S.copiedDragChain[i].x;
+        target.notes[i].position.y = S.copiedDragChain[i].y;
+      }
+      const skipped = target.notes.length - copyCount;
+      document.getElementById('status-msg').textContent =
+        `드래그 체인 붙여넣기 완료 — ${copyCount}개 노드 적용` +
+        (skipped > 0 ? ` / ${skipped}개 초과 노드 유지` : '');
+      renderAll();
+      return;
+    }
     if (!S.copiedBarNotes || !S.normalBars.length) return;
     const startIdx = S.multiSelectedBars.size > 0
       ? Math.min(...S.multiSelectedBars)
