@@ -214,11 +214,17 @@ const S = {
   selectedDragChain: -1,
   selectedNoteIdx: -1, // index of focused note within the current bar/chain
   dragging: null,      // {noteRef, startMx, startMy, startX, startY}
+  midPan: null,        // {startMx, startMy, startPanX, startPanY}  – middle-mouse pan
+  noteBoxSelect: null, // {startMx, startMy, currentMx, currentMy} – rubber-band select
+  selectedNotes: new Set(), // Set of note refs selected via box drag
+  multiDrag: null,     // {notes:[{ref,startX,startY}], startMx, startMy}
+  noteViewPan: { x: 0, y: 0 }, // canvas-pixel pan offset for the note canvas
   snapEnabled: true,
   tlZoom: 1,
   multiSelectedBars: new Set(), // indices of bars in rubber-band selection
   copiedBarNotes: null,         // [{count, notes:[{type,x,y}]}] clipboard
   pasteOverlayBars: new Map(),  // barIndex → 'ok'|'error' after Ctrl+V
+  copiedDragChain: null,        // [{x,y}] node positions clipboard for drag chains
   tlDragSelect: null,           // {startX, currentX} during rubber-band drag
   undoStack: [],                // [{id, x, y}[]] position snapshots
 };
@@ -305,6 +311,14 @@ document.getElementById('json-upload').addEventListener('change', e => {
 // ═══════════════════════════════════════════════
 //  DATA BUILDING
 // ═══════════════════════════════════════════════
+function resetNoteView() {
+  S.noteViewPan   = { x: 0, y: 0 };
+  S.selectedNotes = new Set();
+  S.noteBoxSelect = null;
+  S.midPan        = null;
+  S.multiDrag     = null;
+}
+
 function buildData() {
   buildNormalBars();
   buildDragChains();
@@ -313,9 +327,11 @@ function buildData() {
   S.selectedNoteIdx   = -1;
   S.multiSelectedBars = new Set();
   S.copiedBarNotes    = null;
+  S.copiedDragChain   = null;
   S.pasteOverlayBars  = new Map();
   S.tlDragSelect      = null;
   S.undoStack         = [];
+  resetNoteView();
   document.getElementById('info-notes').textContent = `노트: ${S.rawNotes.length}`;
   document.getElementById('info-bars').textContent  =
     `바: ${S.normalBars.length} / 체인: ${S.dragChains.length}`;
@@ -565,16 +581,16 @@ function renderDragTimeline() {
 function worldToCanvas(wx, wy) {
   const W = noteCanvasEl.width;
   const H = noteCanvasEl.height;
-  const px = (wx - WORLD.xMin) / (WORLD.xMax - WORLD.xMin) * W;
-  const py = (1 - (wy - WORLD.yMin) / (WORLD.yMax - WORLD.yMin)) * H;
+  const px = (wx - WORLD.xMin) / (WORLD.xMax - WORLD.xMin) * W + S.noteViewPan.x;
+  const py = (1 - (wy - WORLD.yMin) / (WORLD.yMax - WORLD.yMin)) * H + S.noteViewPan.y;
   return [px, py];
 }
 
 function canvasToWorld(cx, cy) {
   const W = noteCanvasEl.width;
   const H = noteCanvasEl.height;
-  const wx = (cx / W) * (WORLD.xMax - WORLD.xMin) + WORLD.xMin;
-  const wy = (1 - cy / H) * (WORLD.yMax - WORLD.yMin) + WORLD.yMin;
+  const wx = ((cx - S.noteViewPan.x) / W) * (WORLD.xMax - WORLD.xMin) + WORLD.xMin;
+  const wy = (1 - (cy - S.noteViewPan.y) / H) * (WORLD.yMax - WORLD.yMin) + WORLD.yMin;
   return [wx, wy];
 }
 
@@ -627,6 +643,24 @@ function renderNoteCanvas() {
     // Overlay
     drawOverlay(ctx, W,
       `드래그 체인 ${S.selectedDragChain + 1} / ${S.dragChains.length}   |   시작: ${chain.startTime.toFixed(3)}s   |   노드: ${chain.notes.length}개`);
+  }
+
+  // Box-selection rectangle
+  if (S.noteBoxSelect) {
+    const { startMx, startMy, currentMx, currentMy } = S.noteBoxSelect;
+    const rx = Math.min(startMx, currentMx);
+    const ry = Math.min(startMy, currentMy);
+    const rw = Math.abs(currentMx - startMx);
+    const rh = Math.abs(currentMy - startMy);
+    ctx.save();
+    ctx.fillStyle = 'rgba(100,181,246,0.08)';
+    ctx.fillRect(rx, ry, rw, rh);
+    ctx.strokeStyle = 'rgba(100,181,246,0.8)';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([4, 3]);
+    ctx.strokeRect(rx, ry, rw, rh);
+    ctx.setLineDash([]);
+    ctx.restore();
   }
 }
 
@@ -688,19 +722,21 @@ function drawOverlay(ctx, W, text) {
 function renderNormalBarNotes(ctx, bar) {
   bar.notes.forEach((note, idx) => {
     const [cx, cy] = worldToCanvas(note.position.x, note.position.y);
-    const isDragging = S.dragging && S.dragging.noteRef === note;
-    const isSelected = idx === S.selectedNoteIdx;
+    const isDragging = (S.dragging && S.dragging.noteRef === note) ||
+                       (S.multiDrag && S.multiDrag.notes.some(item => item.ref === note));
+    const isSelected = idx === S.selectedNoteIdx || S.selectedNotes.has(note);
+    const highlight  = isDragging || isSelected;
     const color = noteColor(note.type);
 
     ctx.save();
     ctx.shadowColor = color;
-    ctx.shadowBlur = (isDragging || isSelected) ? 28 : 8;
+    ctx.shadowBlur = highlight ? 28 : 8;
     ctx.beginPath();
     ctx.arc(cx, cy, NOTE_R, 0, Math.PI * 2);
-    ctx.fillStyle = (isDragging || isSelected) ? '#ffffff' : color;
+    ctx.fillStyle = highlight ? '#ffffff' : color;
     ctx.fill();
-    ctx.strokeStyle = (isDragging || isSelected) ? color : 'rgba(255,255,255,0.4)';
-    ctx.lineWidth = (isDragging || isSelected) ? 2.5 : 1.5;
+    ctx.strokeStyle = highlight ? color : 'rgba(255,255,255,0.4)';
+    ctx.lineWidth = highlight ? 2.5 : 1.5;
     ctx.stroke();
     ctx.restore();
 
@@ -716,7 +752,7 @@ function renderNormalBarNotes(ctx, bar) {
       ctx.restore();
     }
 
-    ctx.fillStyle = (isDragging || isSelected) ? color : '#0d1b2a';
+    ctx.fillStyle = highlight ? color : '#0d1b2a';
     ctx.font = 'bold 9px Segoe UI';
     ctx.textAlign = 'center';
     ctx.fillText(noteLabel(note.type), cx, cy + 3);
@@ -772,18 +808,20 @@ function renderDragChainNotes(ctx, chain) {
   // Draw node circles
   notes.forEach((note, idx) => {
     const [cx, cy] = worldToCanvas(note.position.x, note.position.y);
-    const isDragging = S.dragging && S.dragging.noteRef === note;
-    const isSelected = idx === S.selectedNoteIdx;
+    const isDragging = (S.dragging && S.dragging.noteRef === note) ||
+                       (S.multiDrag && S.multiDrag.notes.some(item => item.ref === note));
+    const isSelected = idx === S.selectedNoteIdx || S.selectedNotes.has(note);
+    const highlight  = isDragging || isSelected;
 
     ctx.save();
     ctx.shadowColor = DRAG_COLOR;
-    ctx.shadowBlur = (isDragging || isSelected) ? 28 : 10;
+    ctx.shadowBlur = highlight ? 28 : 10;
     ctx.beginPath();
     ctx.arc(cx, cy, NOTE_R, 0, Math.PI * 2);
-    ctx.fillStyle = (isDragging || isSelected) ? '#ffffff' : DRAG_COLOR;
+    ctx.fillStyle = highlight ? '#ffffff' : DRAG_COLOR;
     ctx.fill();
-    ctx.strokeStyle = (isDragging || isSelected) ? DRAG_COLOR : 'rgba(255,255,255,0.4)';
-    ctx.lineWidth = (isDragging || isSelected) ? 2.5 : 1.5;
+    ctx.strokeStyle = highlight ? DRAG_COLOR : 'rgba(255,255,255,0.4)';
+    ctx.lineWidth = highlight ? 2.5 : 1.5;
     ctx.stroke();
     ctx.restore();
 
@@ -799,7 +837,7 @@ function renderDragChainNotes(ctx, chain) {
     }
 
     // Sequence index inside
-    ctx.fillStyle = (isDragging || isSelected) ? DRAG_COLOR : '#1a0800';
+    ctx.fillStyle = highlight ? DRAG_COLOR : '#1a0800';
     ctx.font = `bold 10px Segoe UI`;
     ctx.textAlign = 'center';
     ctx.fillText(idx + 1, cx, cy + 4);
@@ -866,6 +904,7 @@ normalTlEl.addEventListener('mousedown', e => {
         S.dragging = null;
         S.multiSelectedBars = new Set([i]);
         S.tlDragSelect = null;
+        resetNoteView();
         document.getElementById('info-selected').textContent =
           `일반/롱 바 ${i + 1}번 (${S.normalBars[i].time.toFixed(2)}s, ${S.normalBars[i].notes.length}개)`;
         renderAll();
@@ -896,6 +935,7 @@ dragTlEl.addEventListener('click', e => {
       S.selectedNoteIdx   = -1;
       S.dragging = null;
       S.multiSelectedBars = new Set();
+      resetNoteView();
       document.getElementById('info-selected').textContent =
         `드래그 체인 ${i + 1}번 (${S.dragChains[i].startTime.toFixed(2)}s, ${S.dragChains[i].notes.length}개 노드)`;
       renderAll();
@@ -932,21 +972,44 @@ function getDisplayNotes() {
 }
 
 noteCanvasEl.addEventListener('mousedown', e => {
+  // Middle mouse: start canvas pan
+  if (e.button === 1) {
+    e.preventDefault();
+    const [mx, my] = mouseOnNote(e);
+    S.midPan = { startMx: mx, startMy: my, startPanX: S.noteViewPan.x, startPanY: S.noteViewPan.y };
+    noteCanvasEl.style.cursor = 'all-scroll';
+    return;
+  }
+  if (e.button !== 0) return;
   const notes = getDisplayNotes();
   if (!notes.length) return;
   const [mx, my] = mouseOnNote(e);
   for (const note of notes) {
     const [cx, cy] = worldToCanvas(note.position.x, note.position.y);
     if (Math.hypot(mx - cx, my - cy) <= NOTE_R + NOTE_HIT_TOLERANCE) {
-      S.dragging = {
-        noteRef: note,
-        startMx: mx, startMy: my,
-        startX: note.position.x, startY: note.position.y,
-      };
+      if (S.selectedNotes.has(note) && S.selectedNotes.size > 1) {
+        // Multi-drag all selected notes
+        S.multiDrag = {
+          notes: [...S.selectedNotes].map(n => ({ ref: n, startX: n.position.x, startY: n.position.y })),
+          startMx: mx, startMy: my,
+        };
+      } else {
+        // Single drag
+        S.selectedNotes = new Set([note]);
+        S.dragging = {
+          noteRef: note,
+          startMx: mx, startMy: my,
+          startX: note.position.x, startY: note.position.y,
+        };
+      }
       noteCanvasEl.style.cursor = 'grabbing';
-      break;
+      return;
     }
   }
+  // Empty area: start rubber-band selection
+  S.selectedNotes.clear();
+  S.noteBoxSelect = { startMx: mx, startMy: my, currentMx: mx, currentMy: my };
+  renderNoteCanvas();
 });
 
 // Throttle mouse-position DOM update via requestAnimationFrame
@@ -964,6 +1027,52 @@ noteCanvasEl.addEventListener('mousemove', e => {
   const [mx, my] = mouseOnNote(e);
   const [wx, wy] = canvasToWorld(mx, my);
   scheduleInfoPosUpdate(`마우스: (${wx.toFixed(2)}, ${wy.toFixed(2)})`);
+
+  // Middle-mouse pan
+  if (S.midPan) {
+    S.noteViewPan.x = S.midPan.startPanX + (mx - S.midPan.startMx);
+    S.noteViewPan.y = S.midPan.startPanY + (my - S.midPan.startMy);
+    renderNoteCanvas();
+    return;
+  }
+
+  // Rubber-band box selection
+  if (S.noteBoxSelect) {
+    S.noteBoxSelect.currentMx = mx;
+    S.noteBoxSelect.currentMy = my;
+    const x1 = Math.min(S.noteBoxSelect.startMx, mx);
+    const x2 = Math.max(S.noteBoxSelect.startMx, mx);
+    const y1 = Math.min(S.noteBoxSelect.startMy, my);
+    const y2 = Math.max(S.noteBoxSelect.startMy, my);
+    S.selectedNotes.clear();
+    for (const note of getDisplayNotes()) {
+      const [ncx, ncy] = worldToCanvas(note.position.x, note.position.y);
+      if (ncx >= x1 && ncx <= x2 && ncy >= y1 && ncy <= y2) S.selectedNotes.add(note);
+    }
+    renderNoteCanvas();
+    return;
+  }
+
+  // Multi-note drag
+  if (S.multiDrag) {
+    const W = noteCanvasEl.width;
+    const H = noteCanvasEl.height;
+    const dxPx = mx - S.multiDrag.startMx;
+    const dyPx = my - S.multiDrag.startMy;
+    const dwx =  (dxPx / W) * (WORLD.xMax - WORLD.xMin);
+    const dwy = -(dyPx / H) * (WORLD.yMax - WORLD.yMin);
+    for (const item of S.multiDrag.notes) {
+      let nx = Math.max(WORLD.xMin, Math.min(WORLD.xMax, item.startX + dwx));
+      let ny = Math.max(WORLD.yMin, Math.min(WORLD.yMax, item.startY + dwy));
+      if (S.snapEnabled) { nx = Math.round(nx * 2) / 2; ny = Math.round(ny * 2) / 2; }
+      item.ref.position.x = nx;
+      item.ref.position.y = ny;
+    }
+    document.getElementById('status-drag').textContent =
+      `다중 드래그 중 (${S.multiDrag.notes.length}개)`;
+    renderNoteCanvas();
+    return;
+  }
 
   if (!S.dragging) {
     const notes = getDisplayNotes();
@@ -999,8 +1108,27 @@ noteCanvasEl.addEventListener('mousemove', e => {
   renderNoteCanvas();
 });
 
-noteCanvasEl.addEventListener('mouseup', () => endDrag());
+noteCanvasEl.addEventListener('mouseup', e => {
+  if (e.button === 1 && S.midPan) {
+    S.midPan = null;
+    noteCanvasEl.style.cursor = 'crosshair';
+    return;
+  }
+  if (S.noteBoxSelect) {
+    S.noteBoxSelect = null;
+    const count = S.selectedNotes.size;
+    if (count > 0)
+      document.getElementById('status-msg').textContent = `${count}개 노트 선택됨 — 드래그로 이동`;
+    renderNoteCanvas();
+    return;
+  }
+  if (S.multiDrag) { endMultiDrag(); return; }
+  endDrag();
+});
 noteCanvasEl.addEventListener('mouseleave', () => {
+  if (S.midPan) { S.midPan = null; noteCanvasEl.style.cursor = 'crosshair'; }
+  if (S.noteBoxSelect) { S.noteBoxSelect = null; renderNoteCanvas(); }
+  if (S.multiDrag) endMultiDrag();
   if (S.dragging) endDrag();
   document.getElementById('info-pos').textContent = '마우스: —';
 });
@@ -1026,10 +1154,37 @@ function endDrag() {
   renderNoteCanvas();
 }
 
+function endMultiDrag() {
+  if (!S.multiDrag) return;
+  const changed = S.multiDrag.notes.some(
+    item => item.ref.position.x !== item.startX || item.ref.position.y !== item.startY
+  );
+  if (changed) {
+    // Snapshot before: restore originals, push undo, then reapply finals
+    const finals = S.multiDrag.notes.map(
+      item => ({ ref: item.ref, x: item.ref.position.x, y: item.ref.position.y })
+    );
+    S.multiDrag.notes.forEach(item => {
+      item.ref.position.x = item.startX;
+      item.ref.position.y = item.startY;
+    });
+    pushUndo();
+    finals.forEach(f => { f.ref.position.x = f.x; f.ref.position.y = f.y; });
+  }
+  document.getElementById('status-drag').textContent =
+    `저장됨 ✓ (${S.multiDrag.notes.length}개 이동)`;
+  S.multiDrag = null;
+  noteCanvasEl.style.cursor = 'crosshair';
+  renderNoteCanvas();
+}
+
 function mouseOnNote(e) {
   const rect = noteCanvasEl.getBoundingClientRect();
   return [e.clientX - rect.left, e.clientY - rect.top];
 }
+
+// Prevent browser autoscroll triggered by middle-mouse click
+noteCanvasEl.addEventListener('auxclick', e => { if (e.button === 1) e.preventDefault(); });
 
 // ═══════════════════════════════════════════════
 //  UNDO
@@ -1118,6 +1273,7 @@ function handleShiftNav(forward) {
         S.selectedNormalBar = newIdx;
         const newBar = S.normalBars[newIdx];
         S.selectedNoteIdx = forward ? 0 : newBar.notes.length - 1;
+        resetNoteView();
         scrollTimelineToSelected();
       }
     } else {
@@ -1127,6 +1283,7 @@ function handleShiftNav(forward) {
       if (newIdx === S.selectedNormalBar) return;
       S.selectedNormalBar = newIdx;
       S.selectedNoteIdx = -1;
+      resetNoteView();
       scrollTimelineToSelected();
     }
     updateInfoSelected();
@@ -1149,6 +1306,7 @@ function handleShiftNav(forward) {
         S.selectedDragChain = newIdx;
         const newChain = S.dragChains[newIdx];
         S.selectedNoteIdx = forward ? 0 : newChain.notes.length - 1;
+        resetNoteView();
         scrollTimelineToSelected();
       }
     } else {
@@ -1158,6 +1316,7 @@ function handleShiftNav(forward) {
       if (newIdx === S.selectedDragChain) return;
       S.selectedDragChain = newIdx;
       S.selectedNoteIdx = -1;
+      resetNoteView();
       scrollTimelineToSelected();
     }
     updateInfoSelected();
@@ -1222,8 +1381,16 @@ document.addEventListener('keydown', e => {
     return;
   }
 
-  // ── Ctrl+C: copy selected normal bars ──────────────────────────
+  // ── Ctrl+C: copy selected normal bars or drag chain ────────────
   if ((e.ctrlKey || e.metaKey) && e.key === 'c') {
+    // Drag chain takes priority when selected
+    if (S.selectedDragChain >= 0 && S.dragChains.length > 0) {
+      const chain = S.dragChains[S.selectedDragChain];
+      S.copiedDragChain = chain.notes.map(n => ({ x: n.position.x, y: n.position.y }));
+      document.getElementById('status-msg').textContent =
+        `📋 드래그 체인 복사됨 (노드 ${S.copiedDragChain.length}개)`;
+      return;
+    }
     const selection = S.multiSelectedBars.size > 0
       ? [...S.multiSelectedBars].sort((a, b) => a - b)
       : (S.selectedNormalBar >= 0 ? [S.selectedNormalBar] : []);
@@ -1241,8 +1408,25 @@ document.addEventListener('keydown', e => {
     return;
   }
 
-  // ── Ctrl+V: paste copied bars starting from selected bar ────────
+  // ── Ctrl+V: paste copied bars / drag chain ──────────────────────
   if ((e.ctrlKey || e.metaKey) && e.key === 'v') {
+    // Drag chain paste takes priority when a drag chain is selected
+    if (S.copiedDragChain && S.selectedDragChain >= 0 && S.dragChains.length > 0) {
+      e.preventDefault();
+      const target = S.dragChains[S.selectedDragChain];
+      const copyCount = Math.min(S.copiedDragChain.length, target.notes.length);
+      pushUndo();
+      for (let i = 0; i < copyCount; i++) {
+        target.notes[i].position.x = S.copiedDragChain[i].x;
+        target.notes[i].position.y = S.copiedDragChain[i].y;
+      }
+      const skipped = target.notes.length - copyCount;
+      document.getElementById('status-msg').textContent =
+        `드래그 체인 붙여넣기 완료 — ${copyCount}개 노드 적용` +
+        (skipped > 0 ? ` / ${skipped}개 초과 노드 유지` : '');
+      renderAll();
+      return;
+    }
     if (!S.copiedBarNotes || !S.normalBars.length) return;
     const startIdx = S.multiSelectedBars.size > 0
       ? Math.min(...S.multiSelectedBars)
@@ -1283,6 +1467,25 @@ document.addEventListener('keydown', e => {
     const forward = e.key === 'd' || e.key === 'D';
     e.preventDefault();
     handleShiftNav(forward);
+    return;
+  }
+
+  // ── Space: play from 1s before selected bar ─────────────────────
+  if (e.key === ' ') {
+    if (!audioBuffer) return;
+    e.preventDefault();
+    if (S.selectedNormalBar >= 0 && S.normalBars.length > 0) {
+      const barTime = S.normalBars[S.selectedNormalBar].time;
+      const seekTo  = Math.max(0, barTime - 1);
+      if (isPlaying) stopPlayback(false);
+      playbackOffset  = seekTo;
+      currentPlayTime = seekTo;
+      document.getElementById('play-time').textContent = seekTo.toFixed(2) + 's';
+      startPlayback();
+    } else {
+      if (isPlaying) stopPlayback(false);
+      else           startPlayback();
+    }
     return;
   }
 
