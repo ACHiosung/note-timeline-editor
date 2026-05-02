@@ -1286,6 +1286,25 @@ document.addEventListener('keydown', e => {
     return;
   }
 
+  // ── Space: play from 1s before selected bar ─────────────────────
+  if (e.key === ' ') {
+    if (!audioBuffer) return;
+    e.preventDefault();
+    if (S.selectedNormalBar >= 0 && S.normalBars.length > 0) {
+      const barTime = S.normalBars[S.selectedNormalBar].time;
+      const seekTo  = Math.max(0, barTime - 1);
+      if (isPlaying) stopPlayback(false);
+      playbackOffset  = seekTo;
+      currentPlayTime = seekTo;
+      document.getElementById('play-time').textContent = seekTo.toFixed(2) + 's';
+      startPlayback();
+    } else {
+      if (isPlaying) stopPlayback(false);
+      else           startPlayback();
+    }
+    return;
+  }
+
   const isArrow = e.key === 'ArrowLeft' || e.key === 'ArrowRight'
                || e.key === 'ArrowUp'   || e.key === 'ArrowDown';
   if (!isArrow) return;
