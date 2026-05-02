@@ -135,6 +135,7 @@
     <input type="file" id="json-upload" accept=".json" style="display:none;">
   </label>
   <button class="btn btn-success" id="export-btn" disabled>💾 JSON 저장</button>
+  <button class="btn btn-success" id="export-chart-btn" disabled>🎮 채보용 JSON</button>
   <span class="tag" id="info-notes">노트: —</span>
   <span class="tag" id="info-bars">바: —</span>
   <span class="tag tag-hl" id="info-selected">선택: —</span>
@@ -298,6 +299,7 @@ document.getElementById('json-upload').addEventListener('change', e => {
       });
       buildData();
       document.getElementById('export-btn').disabled = false;
+      document.getElementById('export-chart-btn').disabled = false;
       document.getElementById('status-msg').textContent =
         `"${file.name}" 로드 완료 — 노트 ${S.rawNotes.length}개 / 바 ${S.normalBars.length}개 / 드래그체인 ${S.dragChains.length}개`;
       renderAll();
@@ -1574,6 +1576,49 @@ document.getElementById('export-btn').addEventListener('click', () => {
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
   document.getElementById('status-msg').textContent = '✅ JSON 저장 완료!';
+});
+
+// ═══════════════════════════════════════════════
+//  CHART EXPORT (채보용)
+// ═══════════════════════════════════════════════
+document.getElementById('export-chart-btn').addEventListener('click', () => {
+  if (!S.rawNotes) return;
+  const noteById = new Map(S.rawNotes.map(n => [n.id, n]));
+  const chartNotes = S.rawNotes.map(n => {
+    if (n.type === 2) {
+      const nextNote = (n.nextId != null) ? noteById.get(n.nextId) : null;
+      const endPosition = nextNote
+        ? { x: nextNote.position.x, y: nextNote.position.y }
+        : { x: 0, y: 0 };
+      return {
+        id:          n.id,
+        type:        n.type,
+        time:        n.time,
+        position:    { x: n.position.x, y: n.position.y },
+        duration:    n.duration,
+        endPosition,
+      };
+    }
+    return {
+      id:          n.id,
+      type:        n.type,
+      time:        n.time,
+      position:    { x: n.position.x, y: n.position.y },
+      duration:    n.duration,
+      endPosition: n.endPosition ? { x: n.endPosition.x, y: n.endPosition.y } : { x: 0, y: 0 },
+    };
+  });
+  const payload = JSON.stringify({ notes: chartNotes }, null, 4);
+  const blob = new Blob([payload], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'notes_chart.json';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  document.getElementById('status-msg').textContent = '✅ 채보용 JSON 저장 완료!';
 });
 
 // ═══════════════════════════════════════════════
